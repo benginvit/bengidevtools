@@ -16,16 +16,16 @@ public partial class BuildViewModel : ObservableObject
     public BuildFlags Flags { get; } = new();
 
     [ObservableProperty]
-    private bool _isBuilding;
+    public partial bool IsBuilding { get; set; }
 
     [ObservableProperty]
-    private string _buildLog = "";
+    public partial string BuildLog { get; set; } = "";
 
     [ObservableProperty]
-    private int _succeededCount;
+    public partial int SucceededCount { get; set; }
 
     [ObservableProperty]
-    private int _failedCount;
+    public partial int FailedCount { get; set; }
 
     public BuildViewModel(IBuildService buildService, ISettingsService settingsService)
     {

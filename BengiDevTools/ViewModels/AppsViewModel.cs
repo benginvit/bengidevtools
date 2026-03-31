@@ -15,10 +15,10 @@ public partial class AppsViewModel : ObservableObject
     public ObservableCollection<AppGroup> Groups { get; } = new();
 
     [ObservableProperty]
-    private bool _isRefreshingGit;
+    public partial bool IsRefreshingGit { get; set; }
 
     [ObservableProperty]
-    private int _runningCount;
+    public partial int RunningCount { get; set; }
 
     public AppsViewModel(
         IProcessService processService,
@@ -72,6 +72,7 @@ public partial class AppsViewModel : ObservableObject
     {
         await _processService.StartAsync(app, _settingsService.Settings.RepoRootPath);
         app.IsRunning = _processService.IsRunning(app.Name);
+        RunningCount = Groups.SelectMany(g => g.Apps).Count(a => a.IsRunning);
     }
 
     [RelayCommand]
@@ -79,6 +80,7 @@ public partial class AppsViewModel : ObservableObject
     {
         await _processService.StopAsync(app);
         app.IsRunning = false;
+        RunningCount = Groups.SelectMany(g => g.Apps).Count(a => a.IsRunning);
     }
 
     [RelayCommand]

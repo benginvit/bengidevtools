@@ -8,8 +8,8 @@ public partial class RepoBuildTarget : ObservableObject
     public required string SlnPath { get; init; }
 
     [ObservableProperty]
-    private bool _isSelected = true;
+    public partial bool IsSelected { get; set; } = true;
 
     [ObservableProperty]
-    private string _status = "";
+    public partial string Status { get; set; } = "";
 }

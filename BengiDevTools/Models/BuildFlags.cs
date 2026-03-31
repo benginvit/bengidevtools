@@ -5,17 +5,17 @@ namespace BengiDevTools.Models;
 public partial class BuildFlags : ObservableObject
 {
     [ObservableProperty]
-    private bool _noRestore;
+    public partial bool NoRestore { get; set; }
 
     [ObservableProperty]
-    private bool _noAnalyzers;
+    public partial bool NoAnalyzers { get; set; }
 
     [ObservableProperty]
-    private bool _noDocs;
+    public partial bool NoDocs { get; set; }
 
     [ObservableProperty]
-    private bool _parallel;
+    public partial bool Parallel { get; set; }
 
     [ObservableProperty]
-    private bool _snabb;
+    public partial bool Snabb { get; set; }
 }
