@@ -97,11 +97,12 @@
                                                 VerticalOptions="Center">
 
                                                 <!-- Running indicator dot -->
-                                                <Ellipse
+                                                <BoxView
                                                     Grid.Column="0"
                                                     WidthRequest="10"
                                                     HeightRequest="10"
-                                                    Fill="{Binding IsRunning, Converter={StaticResource BoolToColor}}"
+                                                    CornerRadius="5"
+                                                    Color="{Binding IsRunning, Converter={StaticResource BoolToColor}}"
                                                     VerticalOptions="Center" />
 
                                                 <!-- App name -->

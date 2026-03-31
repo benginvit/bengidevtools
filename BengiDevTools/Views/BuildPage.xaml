@@ -32,24 +32,24 @@
             Padding="12,10">
             <VerticalStackLayout Spacing="8">
                 <Label Text="Bygginställningar" FontSize="13" TextColor="{StaticResource DisabledColor}" />
-                <FlexLayout Wrap="Wrap" Direction="Row" AlignItems="Center" Gap="16">
-                    <HorizontalStackLayout Spacing="6">
+                <FlexLayout Wrap="Wrap" Direction="Row" AlignItems="Center">
+                    <HorizontalStackLayout Spacing="6" Margin="0,0,16,4">
                         <CheckBox IsChecked="{Binding Flags.NoRestore}" />
                         <Label Text="--no-restore" VerticalOptions="Center" />
                     </HorizontalStackLayout>
-                    <HorizontalStackLayout Spacing="6">
+                    <HorizontalStackLayout Spacing="6" Margin="0,0,16,4">
                         <CheckBox IsChecked="{Binding Flags.NoAnalyzers}" />
                         <Label Text="--no-analyzers" VerticalOptions="Center" />
                     </HorizontalStackLayout>
-                    <HorizontalStackLayout Spacing="6">
+                    <HorizontalStackLayout Spacing="6" Margin="0,0,16,4">
                         <CheckBox IsChecked="{Binding Flags.NoDocs}" />
                         <Label Text="--no-docs" VerticalOptions="Center" />
                     </HorizontalStackLayout>
-                    <HorizontalStackLayout Spacing="6">
+                    <HorizontalStackLayout Spacing="6" Margin="0,0,16,4">
                         <CheckBox IsChecked="{Binding Flags.Parallel}" />
                         <Label Text="Parallellt (max 4)" VerticalOptions="Center" />
                     </HorizontalStackLayout>
-                    <HorizontalStackLayout Spacing="6">
+                    <HorizontalStackLayout Spacing="6" Margin="0,0,0,4">
                         <CheckBox IsChecked="{Binding Flags.Snabb}" />
                         <Label Text="Snabb (alla optimeringar)" TextColor="{StaticResource WarningColor}" VerticalOptions="Center" />
                     </HorizontalStackLayout>
