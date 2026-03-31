@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Shell
+    x:Class="BengiDevTools.AppShell"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:views="clr-namespace:BengiDevTools.Views"
+    Shell.NavBarIsVisible="False"
+    FlyoutBehavior="Disabled"
+    BackgroundColor="{StaticResource SurfaceColor}"
+    TabBarBackgroundColor="{StaticResource SurfaceColor}"
+    TabBarForegroundColor="{StaticResource SecondaryTextColor}"
+    TabBarUnselectedColor="{StaticResource DisabledColor}">
+
+    <TabBar>
+        <ShellContent
+            Title="Applikationer"
+            ContentTemplate="{DataTemplate views:AppsPage}"
+            Route="apps" />
+        <ShellContent
+            Title="Bygga"
+            ContentTemplate="{DataTemplate views:BuildPage}"
+            Route="build" />
+        <ShellContent
+            Title="Inställningar"
+            ContentTemplate="{DataTemplate views:SettingsPage}"
+            Route="settings" />
+    </TabBar>
+
+</Shell>

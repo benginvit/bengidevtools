@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:vm="clr-namespace:BengiDevTools.ViewModels"
+    xmlns:models="clr-namespace:BengiDevTools.Models"
+    xmlns:conv="clr-namespace:BengiDevTools.Converters"
+    x:DataType="vm:BuildViewModel"
+    x:Class="BengiDevTools.Views.BuildPage"
+    Title="Bygga"
+    BackgroundColor="{StaticResource PageBackgroundColor}">
+
+    <ContentPage.Resources>
+        <conv:StatusToColorConverter x:Key="StatusToColor" />
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto" Padding="16" RowSpacing="12">
+
+        <!-- Header -->
+        <Label
+            Grid.Row="0"
+            Text="Bygga repos"
+            FontSize="20"
+            FontAttributes="Bold"
+            TextColor="{StaticResource SecondaryTextColor}" />
+
+        <!-- Build flags -->
+        <Border
+            Grid.Row="1"
+            BackgroundColor="{StaticResource SurfaceColor}"
+            StrokeShape="RoundRectangle 6"
+            Padding="12,10">
+            <VerticalStackLayout Spacing="8">
+                <Label Text="Bygginställningar" FontSize="13" TextColor="{StaticResource DisabledColor}" />
+                <FlexLayout Wrap="Wrap" Direction="Row" AlignItems="Center" Gap="16">
+                    <HorizontalStackLayout Spacing="6">
+                        <CheckBox IsChecked="{Binding Flags.NoRestore}" />
+                        <Label Text="--no-restore" VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="6">
+                        <CheckBox IsChecked="{Binding Flags.NoAnalyzers}" />
+                        <Label Text="--no-analyzers" VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="6">
+                        <CheckBox IsChecked="{Binding Flags.NoDocs}" />
+                        <Label Text="--no-docs" VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="6">
+                        <CheckBox IsChecked="{Binding Flags.Parallel}" />
+                        <Label Text="Parallellt (max 4)" VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                    <HorizontalStackLayout Spacing="6">
+                        <CheckBox IsChecked="{Binding Flags.Snabb}" />
+                        <Label Text="Snabb (alla optimeringar)" TextColor="{StaticResource WarningColor}" VerticalOptions="Center" />
+                    </HorizontalStackLayout>
+                </FlexLayout>
+            </VerticalStackLayout>
+        </Border>
+
+        <!-- Action bar -->
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto" ColumnSpacing="8">
+            <Button
+                Grid.Column="0"
+                Text="Bygga valda"
+                Command="{Binding BuildCommand}"
+                IsEnabled="{Binding IsBuilding, Converter={StaticResource InvertedBoolConverter}}"
+                WidthRequest="120" />
+            <Button
+                Grid.Column="1"
+                Text="Avbryt"
+                Command="{Binding CancelCommand}"
+                IsEnabled="{Binding IsBuilding}"
+                Style="{StaticResource DangerButton}"
+                WidthRequest="80" />
+            <ActivityIndicator
+                Grid.Column="2"
+                IsRunning="{Binding IsBuilding}"
+                IsVisible="{Binding IsBuilding}"
+                WidthRequest="24"
+                HeightRequest="24"
+                VerticalOptions="Center" />
+            <Label
+                Grid.Column="3"
+                VerticalOptions="Center"
+                IsVisible="{Binding IsBuilding, Converter={StaticResource InvertedBoolConverter}}">
+                <Label.FormattedText>
+                    <FormattedString>
+                        <Span Text="OK: " TextColor="{StaticResource SuccessColor}" />
+                        <Span Text="{Binding SucceededCount}" TextColor="{StaticResource SuccessColor}" />
+                        <Span Text="  FEL: " TextColor="{StaticResource ErrorColor}" />
+                        <Span Text="{Binding FailedCount}" TextColor="{StaticResource ErrorColor}" />
+                    </FormattedString>
+                </Label.FormattedText>
+            </Label>
+
+            <Button
+                Grid.Column="5"
+                Text="Välj alla"
+                Command="{Binding SelectAllCommand}"
+                Style="{StaticResource SmallButton}" />
+            <Button
+                Grid.Column="6"
+                Text="Välj inga"
+                Command="{Binding SelectNoneCommand}"
+                Style="{StaticResource SmallButton}" />
+        </Grid>
+
+        <!-- Repos + log split -->
+        <Grid Grid.Row="3" ColumnDefinitions="280,*" ColumnSpacing="12">
+
+            <!-- Repo list -->
+            <Border
+                Grid.Column="0"
+                BackgroundColor="{StaticResource SurfaceColor}"
+                StrokeShape="RoundRectangle 6">
+                <CollectionView
+                    ItemsSource="{Binding BuildTargets}"
+                    SelectionMode="None">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="models:RepoBuildTarget">
+                            <Grid
+                                ColumnDefinitions="Auto,*,Auto"
+                                Padding="8,4"
+                                ColumnSpacing="6">
+                                <CheckBox
+                                    Grid.Column="0"
+                                    IsChecked="{Binding IsSelected}"
+                                    VerticalOptions="Center" />
+                                <Label
+                                    Grid.Column="1"
+                                    Text="{Binding RepoName}"
+                                    FontSize="12"
+                                    VerticalOptions="Center"
+                                    LineBreakMode="TailTruncation" />
+                                <Label
+                                    Grid.Column="2"
+                                    Text="{Binding Status}"
+                                    FontSize="11"
+                                    VerticalOptions="Center"
+                                    TextColor="{Binding Status, Converter={StaticResource StatusToColor}}" />
+                            </Grid>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </Border>
+
+            <!-- Build log -->
+            <Border
+                Grid.Column="1"
+                BackgroundColor="{StaticResource ElevatedSurfaceColor}"
+                StrokeShape="RoundRectangle 6">
+                <ScrollView x:Name="LogScrollView">
+                    <Editor
+                        Text="{Binding BuildLog}"
+                        IsReadOnly="True"
+                        AutoSize="TextChanges"
+                        BackgroundColor="Transparent"
+                        Padding="8" />
+                </ScrollView>
+            </Border>
+        </Grid>
+
+    </Grid>
+</ContentPage>
