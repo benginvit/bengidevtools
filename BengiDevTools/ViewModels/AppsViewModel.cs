@@ -15,10 +15,10 @@ public partial class AppsViewModel : ObservableObject
     public ObservableCollection<AppGroup> Groups { get; } = new();
 
     [ObservableProperty]
-    public partial bool IsRefreshingGit { get; set; }
+    private bool _isRefreshingGit;
 
     [ObservableProperty]
-    public partial int RunningCount { get; set; }
+    private int _runningCount;
 
     public AppsViewModel(
         IProcessService processService,

@@ -9,7 +9,7 @@ public partial class SettingsViewModel : ObservableObject
     private readonly ISettingsService _settingsService;
 
     [ObservableProperty]
-    public partial string RepoRootPath { get; set; } = @"C:\TFS\Repos";
+    private string _repoRootPath = @"C:\TFS\Repos";
 
     public SettingsViewModel(ISettingsService settingsService)
     {

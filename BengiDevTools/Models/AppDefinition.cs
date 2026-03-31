@@ -11,10 +11,10 @@ public partial class AppDefinition : ObservableObject
     public required string ProjectName { get; init; }
 
     [ObservableProperty]
-    public partial bool IsRunning { get; set; }
+    private bool _isRunning;
 
     [ObservableProperty]
-    public partial string GitStatus { get; set; } = "–";
+    private string _gitStatus = "–";
 
     public string LocalhostUrl => $"https://localhost:{Port}";
 }
