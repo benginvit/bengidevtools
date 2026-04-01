@@ -202,8 +202,8 @@ app.MapPost("/api/build/start", async (HttpContext ctx, BuildStartRequest req, I
                 targets, flags,
                 onProgress: (repo, status) => channel.Writer.TryWrite(
                     JsonSerializer.Serialize(new { type = "progress", repo, status }, jsonOpts)),
-                onOutputLine: line => channel.Writer.TryWrite(
-                    JsonSerializer.Serialize(new { type = "output", line }, jsonOpts)),
+                onOutputLine: (repo, line) => channel.Writer.TryWrite(
+                    JsonSerializer.Serialize(new { type = "output", repo, line }, jsonOpts)),
                 ctx.RequestAborted);
         }
         catch (OperationCanceledException)

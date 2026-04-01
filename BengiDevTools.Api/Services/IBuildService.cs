@@ -8,6 +8,6 @@ public interface IBuildService
         IEnumerable<RepoBuildTarget> targets,
         BuildFlags flags,
         Action<string, string> onProgress,
-        Action<string> onOutputLine,
+        Action<string, string> onOutputLine,   // (repoName, line)
         CancellationToken ct = default);
 }

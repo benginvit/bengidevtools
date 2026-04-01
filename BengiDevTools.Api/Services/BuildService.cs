@@ -9,7 +9,7 @@ public class BuildService : IBuildService
         IEnumerable<RepoBuildTarget> targets,
         BuildFlags flags,
         Action<string, string> onProgress,
-        Action<string> onOutputLine,
+        Action<string, string> onOutputLine,
         CancellationToken ct = default)
     {
         var list = targets.ToList();
@@ -40,11 +40,10 @@ public class BuildService : IBuildService
         RepoBuildTarget target,
         string extraArgs,
         Action<string, string> onProgress,
-        Action<string> onOutputLine,
+        Action<string, string> onOutputLine,
         CancellationToken ct)
     {
         onProgress(target.RepoName, "Bygger...");
-        onOutputLine($"\n▶ {target.RepoName}");
 
         var psi = new ProcessStartInfo("dotnet")
         {
@@ -58,8 +57,8 @@ public class BuildService : IBuildService
         using var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
         var tcs = new TaskCompletionSource<int>();
         proc.Exited += (_, _) => tcs.TrySetResult(proc.ExitCode);
-        proc.OutputDataReceived += (_, e) => { if (e.Data != null) onOutputLine(e.Data); };
-        proc.ErrorDataReceived  += (_, e) => { if (e.Data != null) onOutputLine(e.Data); };
+        proc.OutputDataReceived += (_, e) => { if (e.Data != null) onOutputLine(target.RepoName, e.Data); };
+        proc.ErrorDataReceived  += (_, e) => { if (e.Data != null) onOutputLine(target.RepoName, e.Data); };
 
         await using var reg = ct.Register(() =>
         {
@@ -74,7 +73,7 @@ public class BuildService : IBuildService
         var exitCode = await tcs.Task;
         var status = exitCode == 0 ? "OK" : "FAILED";
         onProgress(target.RepoName, status);
-        onOutputLine($"{(exitCode == 0 ? "✅" : "❌")} {target.RepoName}: {status}");
+        onOutputLine(target.RepoName, exitCode == 0 ? "✅ Build succeeded" : "❌ Build FAILED");
     }
 
     private static string BuildArgs(BuildFlags f)
