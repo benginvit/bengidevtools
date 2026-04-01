@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Threading.Channels;
-using BengiDevTools;
 using BengiDevTools.Models;
 using BengiDevTools.Services;
 
@@ -15,6 +14,7 @@ builder.Services.AddSingleton<ISettingsService, SettingsService>();
 builder.Services.AddSingleton<IBuildService,    BuildService>();
 builder.Services.AddSingleton<IProcessService,  ProcessService>();
 builder.Services.AddSingleton<IGitService,      GitService>();
+builder.Services.AddSingleton<AppScanService>();
 
 var app = builder.Build();
 
@@ -37,7 +37,7 @@ app.MapPut("/api/settings", (AppSettings body, ISettingsService s) =>
     return Results.Ok(s.Settings);
 });
 
-// ─── Repos ────────────────────────────────────────────────────────────────────
+// ─── Repos (Build page) ───────────────────────────────────────────────────────
 
 app.MapGet("/api/repos", (ISettingsService s) =>
 {
@@ -64,76 +64,87 @@ app.MapGet("/api/repos", (ISettingsService s) =>
     return Results.Ok(repos);
 });
 
-// ─── Apps ─────────────────────────────────────────────────────────────────────
+// ─── Apps: scan ───────────────────────────────────────────────────────────────
 
-app.MapGet("/api/apps", (IProcessService proc) =>
-    AppRegistry.Apps.Select(a => new
+app.MapGet("/api/apps/scan", (AppScanService scan, IProcessService proc) =>
+{
+    var apps = scan.Scan();
+    return apps.Select(a => new
     {
-        a.Name, a.Port, a.Group, a.RepoKey, a.ProjectName,
-        IsRunning = proc.IsRunning(a.Name),
-        GitStatus = proc.GetGitStatus(a.Name),
-        LocalhostUrl = $"https://localhost:{a.Port}",
-    }));
+        a.Id, a.RepoName, a.ProjectName, a.HttpsPort, a.LaunchProfile,
+        IsRunning    = proc.IsRunning(a.Id),
+        GitStatus    = scan.GetGitStatus(a.RepoName),
+        LocalhostUrl = a.HttpsPort.HasValue ? $"https://localhost:{a.HttpsPort}" : null,
+    });
+});
 
-app.MapPost("/api/apps/{name}/start", async (string name, IProcessService proc, ISettingsService s) =>
+// Poll running status (ingen re-scan)
+app.MapGet("/api/apps/status", (AppScanService scan, IProcessService proc) =>
+    scan.Cached.Select(a => new { a.Id, IsRunning = proc.IsRunning(a.Id) }));
+
+// ─── Apps: start / stop / restart ─────────────────────────────────────────────
+
+app.MapPost("/api/apps/start", async (AppActionRequest req, AppScanService scan, IProcessService proc) =>
 {
-    var entry = AppRegistry.Apps.FirstOrDefault(a => a.Name == name);
-    if (entry is null) return Results.NotFound();
-    await proc.StartAsync(entry, s.Settings.RepoRootPath);
+    var a = scan.GetById(req.Id);
+    if (a is null) return Results.NotFound();
+    await proc.StartAsync(a.Id, a.CsprojPath, a.LaunchProfile);
     return Results.Ok();
 });
 
-app.MapPost("/api/apps/{name}/stop", async (string name, IProcessService proc) =>
+app.MapPost("/api/apps/stop", async (AppActionRequest req, IProcessService proc) =>
 {
-    await proc.StopAsync(name);
+    await proc.StopAsync(req.Id);
     return Results.Ok();
 });
 
-app.MapPost("/api/apps/{name}/restart", async (string name, IProcessService proc, ISettingsService s) =>
+app.MapPost("/api/apps/restart", async (AppActionRequest req, AppScanService scan, IProcessService proc) =>
 {
-    var entry = AppRegistry.Apps.FirstOrDefault(a => a.Name == name);
-    if (entry is null) return Results.NotFound();
-    await proc.RestartAsync(entry, s.Settings.RepoRootPath);
+    var a = scan.GetById(req.Id);
+    if (a is null) return Results.NotFound();
+    await proc.RestartAsync(a.Id, a.CsprojPath, a.LaunchProfile);
     return Results.Ok();
 });
 
-app.MapPost("/api/apps/start-all", async (IProcessService proc, ISettingsService s) =>
+app.MapPost("/api/apps/start-selected", async (string[] ids, AppScanService scan, IProcessService proc) =>
 {
-    foreach (var entry in AppRegistry.Apps)
-        await proc.StartAsync(entry, s.Settings.RepoRootPath);
+    foreach (var id in ids)
+    {
+        var a = scan.GetById(id);
+        if (a is not null) await proc.StartAsync(a.Id, a.CsprojPath, a.LaunchProfile);
+    }
     return Results.Ok();
 });
 
-app.MapPost("/api/apps/stop-all", async (IProcessService proc) =>
+app.MapPost("/api/apps/stop-all", async (AppScanService scan, IProcessService proc) =>
 {
-    foreach (var entry in AppRegistry.Apps.Where(a => proc.IsRunning(a.Name)))
-        await proc.StopAsync(entry.Name);
+    foreach (var a in scan.Cached.Where(x => proc.IsRunning(x.Id)))
+        await proc.StopAsync(a.Id);
     return Results.Ok();
 });
 
-// SSE: git status refresh – streamas per repo allt eftersom de slutförs
-app.MapGet("/api/apps/git-refresh", async (HttpContext ctx, IProcessService proc, IGitService git, ISettingsService s) =>
+// ─── Apps: git status SSE ─────────────────────────────────────────────────────
+
+app.MapGet("/api/apps/git-refresh", async (HttpContext ctx, AppScanService scan, IGitService git, ISettingsService s) =>
 {
     ctx.Response.Headers.ContentType  = "text/event-stream";
     ctx.Response.Headers.CacheControl = "no-cache";
     ctx.Response.Headers.Connection   = "keep-alive";
     await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
 
-    var root    = s.Settings.RepoRootPath;
-    var channel = Channel.CreateUnbounded<string>();
-    var sem     = new SemaphoreSlim(4);
+    var root       = s.Settings.RepoRootPath;
+    var channel    = Channel.CreateUnbounded<string>();
+    var sem        = new SemaphoreSlim(4);
+    var uniqueRepos = scan.Cached.Select(a => a.RepoName).Distinct().ToList();
 
-    var fetchTasks = AppRegistry.Apps.Select(async entry =>
+    var fetchTasks = uniqueRepos.Select(async repoName =>
     {
         await sem.WaitAsync(ctx.RequestAborted);
         try
         {
-            if (!AppRegistry.RepoMap.TryGetValue(entry.RepoKey, out var folder)) return;
-            var repoPath = Path.Combine(root, folder);
-            var status   = await git.GetStatusAsync(repoPath, ctx.RequestAborted);
-            proc.SetGitStatus(entry.Name, status);
-            channel.Writer.TryWrite(JsonSerializer.Serialize(
-                new { name = entry.Name, status }, jsonOpts));
+            var status = await git.GetStatusAsync(Path.Combine(root, repoName), ctx.RequestAborted);
+            scan.SetGitStatus(repoName, status);
+            channel.Writer.TryWrite(JsonSerializer.Serialize(new { repoName, status }, jsonOpts));
         }
         finally { sem.Release(); }
     });
@@ -161,7 +172,7 @@ app.MapPost("/api/build/start", async (HttpContext ctx, BuildStartRequest req, I
 
     var root = s.Settings.RepoRootPath;
 
-    static string? FindSlnForBuild(string dir)
+    static string? FindSln(string dir)
     {
         foreach (var pattern in new[] { "*.sln", "*.slnx" })
         {
@@ -177,7 +188,7 @@ app.MapPost("/api/build/start", async (HttpContext ctx, BuildStartRequest req, I
         {
             var dir = Path.Combine(root, name);
             if (!Directory.Exists(dir)) return null;
-            var sln = FindSlnForBuild(dir);
+            var sln = FindSln(dir);
             return sln is null ? null : new RepoBuildTarget { RepoName = name, SlnPath = sln };
         })
         .Where(t => t is not null)
@@ -200,21 +211,18 @@ app.MapPost("/api/build/start", async (HttpContext ctx, BuildStartRequest req, I
         {
             await build.BuildAsync(
                 targets, flags,
-                onProgress: (repo, status) => channel.Writer.TryWrite(
+                onProgress:   (repo, status) => channel.Writer.TryWrite(
                     JsonSerializer.Serialize(new { type = "progress", repo, status }, jsonOpts)),
-                onOutputLine: (repo, line) => channel.Writer.TryWrite(
+                onOutputLine: (repo, line)   => channel.Writer.TryWrite(
                     JsonSerializer.Serialize(new { type = "output", repo, line }, jsonOpts)),
                 ctx.RequestAborted);
         }
         catch (OperationCanceledException)
         {
             channel.Writer.TryWrite(
-                JsonSerializer.Serialize(new { type = "output", line = "⛔ Bygge avbrutet." }, jsonOpts));
+                JsonSerializer.Serialize(new { type = "output", repo = "", line = "⛔ Bygge avbrutet." }, jsonOpts));
         }
-        finally
-        {
-            channel.Writer.Complete();
-        }
+        finally { channel.Writer.Complete(); }
     });
 
     await foreach (var msg in channel.Reader.ReadAllAsync(ctx.RequestAborted))
@@ -231,7 +239,9 @@ app.MapPost("/api/build/start", async (HttpContext ctx, BuildStartRequest req, I
 
 app.Run("http://localhost:5050");
 
-// ─── Request DTOs ─────────────────────────────────────────────────────────────
+// ─── DTOs ─────────────────────────────────────────────────────────────────────
+
+public record AppActionRequest(string Id);
 
 public record BuildStartRequest(
     string[] RepoNames,

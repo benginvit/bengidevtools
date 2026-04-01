@@ -5,29 +5,21 @@ namespace BengiDevTools.Services;
 public class ProcessService : IProcessService
 {
     private readonly Dictionary<string, Process> _processes = new();
-    private readonly Dictionary<string, string>  _gitStatuses =
-        AppRegistry.Apps.ToDictionary(a => a.Name, _ => "–");
 
-    public bool IsRunning(string name) =>
-        _processes.TryGetValue(name, out var p) && !p.HasExited;
+    public bool IsRunning(string id) =>
+        _processes.TryGetValue(id, out var p) && !p.HasExited;
 
-    public string GetGitStatus(string name) =>
-        _gitStatuses.TryGetValue(name, out var s) ? s : "–";
-
-    public void SetGitStatus(string name, string status) =>
-        _gitStatuses[name] = status;
-
-    public async Task StartAsync(AppEntry entry, string repoRootPath)
+    public async Task StartAsync(string id, string csprojPath, string? launchProfile = null)
     {
-        if (IsRunning(entry.Name)) return;
+        if (IsRunning(id)) return;
 
-        var csproj = FindCsproj(entry, repoRootPath);
-        if (csproj is null) return;
+        var args = $"run --no-build --project \"{csprojPath}\"";
+        if (launchProfile is not null) args += $" --launch-profile \"{launchProfile}\"";
 
         var psi = new ProcessStartInfo("dotnet")
         {
-            Arguments        = $"run --no-build --project \"{csproj}\"",
-            WorkingDirectory = Path.GetDirectoryName(csproj)!,
+            Arguments        = args,
+            WorkingDirectory = Path.GetDirectoryName(csprojPath)!,
             UseShellExecute  = false,
             CreateNoWindow   = true,
             RedirectStandardOutput = true,
@@ -35,42 +27,26 @@ public class ProcessService : IProcessService
         };
 
         var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
-        proc.Exited += (_, _) => _processes.Remove(entry.Name);
-
+        proc.Exited += (_, _) => _processes.Remove(id);
         proc.Start();
         proc.BeginOutputReadLine();
         proc.BeginErrorReadLine();
-        _processes[entry.Name] = proc;
+        _processes[id] = proc;
 
         await Task.CompletedTask;
     }
 
-    public async Task StopAsync(string name)
+    public async Task StopAsync(string id)
     {
-        if (!_processes.TryGetValue(name, out var proc)) return;
-        try
-        {
-            proc.Kill(entireProcessTree: true);
-            await proc.WaitForExitAsync();
-        }
-        catch { }
-        _processes.Remove(name);
+        if (!_processes.TryGetValue(id, out var proc)) return;
+        try { proc.Kill(entireProcessTree: true); await proc.WaitForExitAsync(); } catch { }
+        _processes.Remove(id);
     }
 
-    public async Task RestartAsync(AppEntry entry, string repoRootPath)
+    public async Task RestartAsync(string id, string csprojPath, string? launchProfile = null)
     {
-        await StopAsync(entry.Name);
+        await StopAsync(id);
         await Task.Delay(500);
-        await StartAsync(entry, repoRootPath);
-    }
-
-    private static string? FindCsproj(AppEntry entry, string repoRootPath)
-    {
-        if (!AppRegistry.RepoMap.TryGetValue(entry.RepoKey, out var folder)) return null;
-        var repoPath = Path.Combine(repoRootPath, folder);
-        if (!Directory.Exists(repoPath)) return null;
-        return Directory
-            .GetFiles(repoPath, $"{entry.ProjectName}.csproj", SearchOption.AllDirectories)
-            .FirstOrDefault();
+        await StartAsync(id, csprojPath, launchProfile);
     }
 }
