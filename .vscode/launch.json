@@ -2,31 +2,29 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Debug (Windows)",
+      "name": "API (dotnet run)",
       "type": "dotnet",
       "request": "launch",
-      "projectPath": "${workspaceFolder}/BengiDevTools/BengiDevTools.csproj",
-      "targetFramework": "net10.0-windows10.0.19041.0",
-      "launchSettingsProfile": null,
+      "projectPath": "${workspaceFolder}/BengiDevTools.Api/BengiDevTools.Api.csproj",
+      "launchSettingsProfile": "http",
       "console": "integratedTerminal",
       "stopAtEntry": false,
-      "preLaunchTask": "build"
+      "preLaunchTask": "build-api"
     },
     {
-      "name": "Run (dotnet run)",
-      "type": "coreclr",
+      "name": "Web (vite dev)",
+      "type": "node",
       "request": "launch",
-      "program": "dotnet",
-      "args": [
-        "run",
-        "--project",
-        "${workspaceFolder}/BengiDevTools/BengiDevTools.csproj",
-        "--framework",
-        "net10.0-windows10.0.19041.0"
-      ],
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal",
-      "preLaunchTask": "build"
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "${workspaceFolder}/BengiDevTools.Web",
+      "console": "integratedTerminal"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Full stack",
+      "configurations": ["API (dotnet run)", "Web (vite dev)"]
     }
   ]
 }

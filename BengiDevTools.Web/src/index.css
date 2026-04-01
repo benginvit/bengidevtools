@@ -1,0 +1,252 @@
+:root {
+  --bg:       #1e1e1e;
+  --panel:    #252526;
+  --border:   #3c3c3c;
+  --text:     #d4d4d4;
+  --muted:    #888;
+  --blue:     #569cd6;
+  --green:    #4ec9b0;
+  --red:      #f44747;
+  --yellow:   #dcdcaa;
+  --purple:   #c586c0;
+  --hover:    #2a2d2e;
+  --active:   #094771;
+  --radius:   4px;
+  --font:     'Segoe UI', system-ui, sans-serif;
+  --mono:     'Cascadia Code', 'Consolas', monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 13px;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#root { display: flex; flex-direction: column; height: 100vh; }
+
+/* ─── Nav tabs ─────────────────────────────────────────────────────────────── */
+
+.nav {
+  display: flex;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.nav button {
+  padding: 10px 20px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-family: var(--font);
+  border-bottom: 2px solid transparent;
+  transition: color .15s;
+}
+
+.nav button:hover   { color: var(--text); }
+.nav button.active  { color: var(--text); border-bottom-color: var(--blue); }
+
+/* ─── Main content ─────────────────────────────────────────────────────────── */
+
+.page {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+/* ─── Buttons ──────────────────────────────────────────────────────────────── */
+
+.btn {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-family: var(--font);
+  transition: background .15s;
+  white-space: nowrap;
+}
+.btn:hover       { background: var(--hover); }
+.btn:disabled    { opacity: .4; cursor: default; }
+.btn.primary     { background: var(--active); border-color: var(--blue); color: #fff; }
+.btn.primary:hover { background: #0d5a8a; }
+.btn.danger      { border-color: var(--red); color: var(--red); }
+.btn.danger:hover { background: #3a1515; }
+.btn.sm          { padding: 2px 8px; font-size: 11px; }
+
+/* ─── Inputs ───────────────────────────────────────────────────────────────── */
+
+.input {
+  padding: 5px 8px;
+  background: #3c3c3c;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--font);
+  outline: none;
+  width: 100%;
+}
+.input:focus { border-color: var(--blue); }
+
+/* ─── Checkbox ─────────────────────────────────────────────────────────────── */
+
+.cb { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+.cb input[type=checkbox] { accent-color: var(--blue); width: 14px; height: 14px; cursor: pointer; }
+
+/* ─── Section header ───────────────────────────────────────────────────────── */
+
+.section-header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+  padding: 4px 0 8px;
+  margin-top: 16px;
+}
+.section-header:first-child { margin-top: 0; }
+
+/* ─── Apps page ────────────────────────────────────────────────────────────── */
+
+.apps-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.app-group { margin-bottom: 24px; }
+
+.app-group-name {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--muted);
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-row {
+  display: grid;
+  grid-template-columns: 12px 1fr 80px 100px auto;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 6px;
+  border-radius: var(--radius);
+}
+.app-row:hover { background: var(--hover); }
+
+.app-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.app-dot.running { background: var(--green); box-shadow: 0 0 4px var(--green); }
+.app-dot.stopped { background: #555; }
+
+.app-name { font-weight: 500; }
+.app-port { color: var(--muted); font-size: 12px; }
+
+.git-status { font-size: 11px; }
+.git-status.ok     { color: var(--green); }
+.git-status.behind { color: var(--yellow); }
+.git-status.miss   { color: var(--muted); }
+
+.app-actions { display: flex; gap: 4px; justify-content: flex-end; }
+
+/* ─── Build page ───────────────────────────────────────────────────────────── */
+
+.build-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+  height: calc(100vh - 80px);
+}
+
+.build-sidebar { display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+
+.build-flags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.build-actions { display: flex; gap: 8px; }
+
+.repo-list {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.repo-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.repo-item:last-child { border-bottom: none; }
+.repo-item:hover { background: var(--hover); }
+
+.repo-status {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+}
+.repo-status.ok     { color: var(--green); }
+.repo-status.failed { color: var(--red); }
+.repo-status.active { color: var(--yellow); }
+
+.build-log {
+  flex: 1;
+  background: #0d0d0d;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.repo-select-actions { display: flex; gap: 8px; }
+
+/* ─── Settings page ────────────────────────────────────────────────────────── */
+
+.settings-form {
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-label { font-size: 12px; color: var(--muted); }
+
+/* ─── Scrollbar ────────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar            { width: 8px; height: 8px; }
+::-webkit-scrollbar-track      { background: var(--bg); }
+::-webkit-scrollbar-thumb      { background: #555; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #777; }
