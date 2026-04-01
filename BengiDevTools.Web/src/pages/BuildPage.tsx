@@ -113,6 +113,11 @@ export default function BuildPage() {
         </div>
 
         <div className="repo-list">
+          {repos.length === 0 && (
+            <div style={{ padding: '12px 10px', color: 'var(--muted)', fontSize: 12 }}>
+              Inga repos hittade.<br />Kontrollera repo-rot i Inställningar.
+            </div>
+          )}
           {repos.map(repo => (
             <div key={repo.repoName} className="repo-item">
               <label className="cb">

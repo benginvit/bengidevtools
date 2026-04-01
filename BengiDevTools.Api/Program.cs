@@ -44,14 +44,20 @@ app.MapGet("/api/repos", (ISettingsService s) =>
     var root = s.Settings.RepoRootPath;
     if (!Directory.Exists(root)) return Results.Ok(Array.Empty<object>());
 
+    static string? FindSln(string dir)
+    {
+        foreach (var pattern in new[] { "*.sln", "*.slnx" })
+        {
+            var f = Directory.GetFiles(dir, pattern, SearchOption.TopDirectoryOnly).FirstOrDefault()
+                 ?? Directory.GetFiles(dir, pattern, SearchOption.AllDirectories).FirstOrDefault();
+            if (f is not null) return f;
+        }
+        return null;
+    }
+
     var repos = Directory.GetDirectories(root)
         .OrderBy(d => d)
-        .Select(dir =>
-        {
-            var sln = Directory.GetFiles(dir, "*.sln", SearchOption.TopDirectoryOnly).FirstOrDefault()
-                   ?? Directory.GetFiles(dir, "*.sln", SearchOption.AllDirectories).FirstOrDefault();
-            return new { repoName = Path.GetFileName(dir), slnPath = sln };
-        })
+        .Select(dir => new { repoName = Path.GetFileName(dir), slnPath = FindSln(dir) })
         .Where(r => r.slnPath is not null)
         .ToList();
 
@@ -155,13 +161,23 @@ app.MapPost("/api/build/start", async (HttpContext ctx, BuildStartRequest req, I
 
     var root = s.Settings.RepoRootPath;
 
+    static string? FindSlnForBuild(string dir)
+    {
+        foreach (var pattern in new[] { "*.sln", "*.slnx" })
+        {
+            var f = Directory.GetFiles(dir, pattern, SearchOption.TopDirectoryOnly).FirstOrDefault()
+                 ?? Directory.GetFiles(dir, pattern, SearchOption.AllDirectories).FirstOrDefault();
+            if (f is not null) return f;
+        }
+        return null;
+    }
+
     var targets = req.RepoNames
         .Select(name =>
         {
             var dir = Path.Combine(root, name);
             if (!Directory.Exists(dir)) return null;
-            var sln = Directory.GetFiles(dir, "*.sln", SearchOption.TopDirectoryOnly).FirstOrDefault()
-                   ?? Directory.GetFiles(dir, "*.sln", SearchOption.AllDirectories).FirstOrDefault();
+            var sln = FindSlnForBuild(dir);
             return sln is null ? null : new RepoBuildTarget { RepoName = name, SlnPath = sln };
         })
         .Where(t => t is not null)
