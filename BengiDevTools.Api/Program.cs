@@ -80,7 +80,44 @@ app.MapGet("/api/apps/scan", (AppScanService scan, IProcessService proc) =>
 
 // Poll running status (ingen re-scan)
 app.MapGet("/api/apps/status", (AppScanService scan, IProcessService proc) =>
-    scan.Cached.Select(a => new { a.Id, IsRunning = proc.IsRunning(a.Id) }));
+    scan.Cached.Select(a => new
+    {
+        a.Id,
+        IsRunning    = proc.IsRunning(a.Id),
+        HasException = proc.HasException(a.Id),
+    }));
+
+// SSE: live output per app
+app.MapGet("/api/apps/output", async (string id, HttpContext ctx, IProcessService proc) =>
+{
+    ctx.Response.Headers.ContentType  = "text/event-stream";
+    ctx.Response.Headers.CacheControl = "no-cache";
+    ctx.Response.Headers.Connection   = "keep-alive";
+    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+
+    // Skicka befintlig buffer direkt
+    foreach (var line in proc.GetOutputBuffer(id))
+    {
+        await ctx.Response.WriteAsync(
+            $"data: {JsonSerializer.Serialize(line)}\n\n", ctx.RequestAborted);
+        await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+    }
+
+    // Streama nya rader
+    var channel = Channel.CreateBounded<string>(
+        new BoundedChannelOptions(500) { FullMode = BoundedChannelFullMode.DropOldest });
+    proc.Subscribe(id, channel);
+    try
+    {
+        await foreach (var line in channel.Reader.ReadAllAsync(ctx.RequestAborted))
+        {
+            await ctx.Response.WriteAsync(
+                $"data: {JsonSerializer.Serialize(line)}\n\n", ctx.RequestAborted);
+            await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+        }
+    }
+    finally { proc.Unsubscribe(id, channel); }
+});
 
 // ─── Apps: start / stop / restart ─────────────────────────────────────────────
 

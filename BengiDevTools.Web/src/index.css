@@ -118,14 +118,59 @@ body {
 
 /* ─── Apps page ────────────────────────────────────────────────────────────── */
 
+.apps-layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 12px;
+  height: calc(100vh - 80px);
+}
+
+.apps-sidebar {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.apps-list {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 0;
+  background: var(--panel);
+}
+
 .apps-toolbar {
   display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: 6px;
+  margin-bottom: 4px;
   flex-wrap: wrap;
 }
 
-.app-group { margin-bottom: 24px; }
+.debug-console {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  height: 100%;
+}
+
+.debug-console-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.app-console { flex: 1; overflow: hidden; }
+
+.app-group { margin-bottom: 4px; }
 
 .app-group-name {
   font-size: 11px;
@@ -140,21 +185,28 @@ body {
 
 .app-row {
   display: grid;
-  grid-template-columns: 16px 10px 1fr 70px auto;
+  grid-template-columns: 16px 10px 1fr 60px auto;
   align-items: center;
   gap: 10px;
   padding: 5px 6px;
   border-radius: var(--radius);
 }
-.app-row:hover { background: var(--hover); }
+.app-row:hover          { background: var(--hover); }
+.app-row.app-row-selected { background: var(--active) !important; }
 
 .app-dot {
   width: 8px; height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
-.app-dot.running { background: var(--green); box-shadow: 0 0 4px var(--green); }
-.app-dot.stopped { background: #555; }
+.app-dot.running   { background: var(--green); box-shadow: 0 0 4px var(--green); }
+.app-dot.stopped   { background: #555; }
+.app-dot.exception { background: var(--red); animation: pulse-exception 1.2s ease-in-out infinite; }
+
+@keyframes pulse-exception {
+  0%, 100% { box-shadow: 0 0 3px var(--red); }
+  50%       { box-shadow: 0 0 8px var(--red); opacity: .7; }
+}
 
 .app-name { font-weight: 500; }
 .app-port { color: var(--muted); font-size: 12px; }

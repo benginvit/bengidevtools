@@ -12,6 +12,7 @@ export interface ScannedApp {
 export interface AppStatus {
   id: string
   isRunning: boolean
+  hasException: boolean
 }
 
 export interface RepoInfo {

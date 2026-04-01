@@ -68,6 +68,17 @@ export async function stopAll(): Promise<void> {
   await fetch(`${BASE}/apps/stop-all`, { method: 'POST' })
 }
 
+export function streamAppOutput(
+  id: string,
+  onLine: (line: string) => void,
+  onDone?: () => void,
+): EventSource {
+  const source = new EventSource(`${BASE}/apps/output?id=${encodeURIComponent(id)}`)
+  source.onmessage = (e) => onLine(JSON.parse(e.data) as string)
+  source.onerror   = () => { source.close(); onDone?.() }
+  return source
+}
+
 export function startGitRefresh(
   onUpdate: (repoName: string, status: string) => void,
   onDone: () => void,
