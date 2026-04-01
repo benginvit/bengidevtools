@@ -57,49 +57,60 @@ public class AppScanService
 
     private static ScannedApp? TryBuildScannedApp(string repoName, string csproj)
     {
-        var projectDir = Path.GetDirectoryName(csproj)!;
-        var launchSettingsPath = Path.Combine(projectDir, "Properties", "launchSettings.json");
-        if (!File.Exists(launchSettingsPath)) return null;
-
+        var projectDir  = Path.GetDirectoryName(csproj)!;
         var projectName = Path.GetFileNameWithoutExtension(csproj);
+
+        // Exkludera testprojekt
+        if (projectName.Contains("Test", StringComparison.OrdinalIgnoreCase) ||
+            projectName.Contains("Spec", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var launchSettingsPath = Path.Combine(projectDir, "Properties", "launchSettings.json");
+        bool hasLaunchSettings = File.Exists(launchSettingsPath);
+
+        if (!hasLaunchSettings && !IsRunnableProject(csproj))
+            return null;
+
         int?    httpsPort     = null;
         string? launchProfile = null;
 
-        try
+        if (hasLaunchSettings)
         {
-            using var doc = JsonDocument.Parse(File.ReadAllText(launchSettingsPath));
-            if (!doc.RootElement.TryGetProperty("profiles", out var profiles)) return null;
-
-            // Föredra "https"-profil, annars första med applicationUrl
-            JsonElement? chosenProfile = null;
-            string?      chosenName   = null;
-
-            foreach (var p in profiles.EnumerateObject())
+            try
             {
-                if (!p.Value.TryGetProperty("applicationUrl", out _)) continue;
-                if (chosenProfile is null) { chosenProfile = p.Value; chosenName = p.Name; }
-                if (p.Name.Equals("https", StringComparison.OrdinalIgnoreCase))
-                    { chosenProfile = p.Value; chosenName = p.Name; break; }
-            }
-
-            if (chosenProfile is null) return null;
-            launchProfile = chosenName;
-
-            if (chosenProfile.Value.TryGetProperty("applicationUrl", out var urlProp))
-            {
-                foreach (var segment in (urlProp.GetString() ?? "").Split(';'))
+                using var doc = JsonDocument.Parse(File.ReadAllText(launchSettingsPath));
+                if (doc.RootElement.TryGetProperty("profiles", out var profiles))
                 {
-                    var url = segment.Trim();
-                    if (url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
-                        && Uri.TryCreate(url, UriKind.Absolute, out var uri))
+                    JsonElement? chosen = null;
+                    string?      chosenName = null;
+
+                    foreach (var p in profiles.EnumerateObject())
                     {
-                        httpsPort = uri.Port;
-                        break;
+                        if (!p.Value.TryGetProperty("applicationUrl", out _)) continue;
+                        if (chosen is null) { chosen = p.Value; chosenName = p.Name; }
+                        if (p.Name.Equals("https", StringComparison.OrdinalIgnoreCase))
+                            { chosen = p.Value; chosenName = p.Name; break; }
+                    }
+
+                    launchProfile = chosenName;
+
+                    if (chosen is not null && chosen.Value.TryGetProperty("applicationUrl", out var urlProp))
+                    {
+                        foreach (var segment in (urlProp.GetString() ?? "").Split(';'))
+                        {
+                            var url = segment.Trim();
+                            if (url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                                && Uri.TryCreate(url, UriKind.Absolute, out var uri))
+                            {
+                                httpsPort = uri.Port;
+                                break;
+                            }
+                        }
                     }
                 }
             }
+            catch { /* ignorera ogiltiga launchSettings */ }
         }
-        catch { return null; }
 
         return new ScannedApp(
             Id:            $"{repoName}/{projectName}",
@@ -108,5 +119,16 @@ public class AppScanService
             CsprojPath:    csproj,
             HttpsPort:     httpsPort,
             LaunchProfile: launchProfile);
+    }
+
+    private static bool IsRunnableProject(string csproj)
+    {
+        try
+        {
+            var content = File.ReadAllText(csproj);
+            return content.Contains("Microsoft.NET.Sdk.Web", StringComparison.OrdinalIgnoreCase)
+                || content.Contains("<OutputType>Exe</OutputType>", StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
     }
 }
