@@ -10,7 +10,7 @@ public class App : MauiWinUIApplication
     static void Main(string[] args)
     {
         ComWrappersSupport.InitializeComWrappers();
-        Microsoft.UI.Xaml.Application.Start(p =>
+        global::Microsoft.UI.Xaml.Application.Start(p =>
         {
             var context = new DispatcherQueueSynchronizationContext(
                 DispatcherQueue.GetForCurrentThread());
