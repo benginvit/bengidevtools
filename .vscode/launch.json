@@ -8,8 +8,24 @@
       "projectPath": "${workspaceFolder}/BengiDevTools/BengiDevTools.csproj",
       "targetFramework": "net10.0-windows10.0.19041.0",
       "launchSettingsProfile": null,
-      "console": "internalConsole",
+      "console": "integratedTerminal",
       "stopAtEntry": false,
+      "preLaunchTask": "build"
+    },
+    {
+      "name": "Run (dotnet run)",
+      "type": "coreclr",
+      "request": "launch",
+      "program": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "${workspaceFolder}/BengiDevTools/BengiDevTools.csproj",
+        "--framework",
+        "net10.0-windows10.0.19041.0"
+      ],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
       "preLaunchTask": "build"
     }
   ]
