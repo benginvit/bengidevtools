@@ -24,8 +24,17 @@ export async function getRepos(): Promise<RepoInfo[]> {
 
 // ─── Apps ─────────────────────────────────────────────────────────────────────
 
-export async function scanApps(): Promise<ScannedApp[]> {
+// GET = returnera cache, POST = tvinga ny scan
+export async function loadApps(): Promise<ScannedApp[]> {
   return (await fetch(`${BASE}/apps/scan`)).json()
+}
+
+export async function scanApps(): Promise<ScannedApp[]> {
+  return (await fetch(`${BASE}/apps/scan`, { method: 'POST' })).json()
+}
+
+export async function getScanInfo(): Promise<{ count: number; lastScanned: string | null }> {
+  return (await fetch(`${BASE}/apps/scan/info`)).json()
 }
 
 export async function getAppStatuses(): Promise<AppStatus[]> {

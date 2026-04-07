@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  scanApps, getAppStatuses,
+  scanApps, loadApps, getScanInfo, getAppStatuses,
   startApp, stopApp, restartApp,
   startSelected, stopAll, startGitRefresh,
   streamAppOutput, getLocalUser, saveLocalUser, exportLocalUserUrl,
@@ -19,23 +19,38 @@ export default function AppsPage() {
   const [gitLoading, setGitLoading]   = useState(false)
   const [selectedId, setSelectedId]   = useState<string | null>(null)
   const [localUserEditId, setLocalUserEditId] = useState<string | null>(null)
+  const [lastScanned, setLastScanned] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  const applyApps = useCallback((data: ScannedApp[]) => {
+    setApps(prev => {
+      const prevMap = new Map(prev.map(a => [a.id, a]))
+      return data.map(a => ({
+        ...a,
+        checked:      prevMap.get(a.id)?.checked      ?? true,
+        hasException: prevMap.get(a.id)?.hasException ?? false,
+        isExternal:   false,
+      }))
+    })
+  }, [])
+
+  // On mount: load from cache (no disk scan)
+  const loadCached = useCallback(async () => {
+    const [data, info] = await Promise.all([loadApps(), getScanInfo()])
+    applyApps(data)
+    setLastScanned(info.lastScanned)
+  }, [applyApps])
+
+  // Manual rescan button
   const scan = useCallback(async () => {
     setScanning(true)
     try {
       const data = await scanApps()
-      setApps(prev => {
-        const prevMap = new Map(prev.map(a => [a.id, a]))
-        return data.map(a => ({
-          ...a,
-          checked:      prevMap.get(a.id)?.checked      ?? true,
-          hasException: prevMap.get(a.id)?.hasException ?? false,
-          isExternal:   false,
-        }))
-      })
+      applyApps(data)
+      const info = await getScanInfo()
+      setLastScanned(info.lastScanned)
     } finally { setScanning(false) }
-  }, [])
+  }, [applyApps])
 
   const pollStatus = useCallback(async () => {
     try {
@@ -48,7 +63,7 @@ export default function AppsPage() {
     } catch { /* server offline */ }
   }, [])
 
-  useEffect(() => { scan() }, [scan])
+  useEffect(() => { loadCached() }, [loadCached])
 
   useEffect(() => {
     pollRef.current = setInterval(pollStatus, 2000)
@@ -80,9 +95,14 @@ export default function AppsPage() {
       {/* ── Sidebar ── */}
       <div className="apps-sidebar">
         <div className="apps-toolbar">
-          <button className="btn" onClick={scan} disabled={scanning}>
+          <button className="btn" onClick={scan} disabled={scanning} title={lastScanned ? `Senast scannad: ${new Date(lastScanned).toLocaleString('sv-SE')}` : 'Aldrig scannad'}>
             {scanning ? '⟳' : '⟳ Scanna'}
           </button>
+          {lastScanned && (
+            <span style={{ fontSize: 10, color: 'var(--muted)', alignSelf: 'center' }}>
+              {new Date(lastScanned).toLocaleDateString('sv-SE')}
+            </span>
+          )}
           <button className="btn primary" onClick={handleStartSelected} disabled={checkedCount === 0}>
             ▶ Starta ({checkedCount})
           </button>

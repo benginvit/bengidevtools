@@ -18,9 +18,16 @@ public record ScannedApp(
 
 public class AppScanService
 {
+    private static readonly string CacheFilePath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "BengiDevTools", "scan-cache.json");
+
+    private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
+
     private readonly ISettingsService _settings;
     private List<ScannedApp> _cache = [];
     private readonly Dictionary<string, string> _gitStatuses = new();
+    public DateTime? LastScanned { get; private set; }
 
     public AppScanService(ISettingsService settings) => _settings = settings;
 
@@ -35,6 +42,22 @@ public class AppScanService
     public void SetGitStatus(string repoName, string status) =>
         _gitStatuses[repoName] = status;
 
+    // Load persisted cache from disk — call once on startup
+    public void LoadCache()
+    {
+        if (!File.Exists(CacheFilePath)) return;
+        try
+        {
+            var saved = JsonSerializer.Deserialize<ScanCacheFile>(
+                File.ReadAllText(CacheFilePath), JsonOpts);
+            if (saved is null) return;
+            _cache       = saved.Apps ?? [];
+            LastScanned  = saved.ScannedAt;
+        }
+        catch { /* corrupt cache — ignore, user can rescan */ }
+    }
+
+    // Full disk scan + persist result
     public IReadOnlyList<ScannedApp> Scan()
     {
         var root = _settings.Settings.RepoRootPath;
@@ -46,8 +69,23 @@ public class AppScanService
             .SelectMany(ScanRepo)
             .ToList();
 
+        LastScanned = DateTime.UtcNow;
+        SaveCache();
         return _cache;
     }
+
+    private void SaveCache()
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(CacheFilePath)!);
+            File.WriteAllText(CacheFilePath,
+                JsonSerializer.Serialize(new ScanCacheFile(_cache, LastScanned), JsonOpts));
+        }
+        catch { /* non-critical */ }
+    }
+
+    private record ScanCacheFile(List<ScannedApp> Apps, DateTime? ScannedAt);
 
     private static IEnumerable<ScannedApp> ScanRepo(string repoDir)
     {

@@ -23,6 +23,7 @@ app.UseStaticFiles();
 app.UseCors();
 
 app.Services.GetRequiredService<ISettingsService>().Load();
+app.Services.GetRequiredService<AppScanService>().LoadCache();
 
 var jsonOpts = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
@@ -68,10 +69,24 @@ app.MapGet("/api/repos", (ISettingsService s) =>
 
 // ─── Apps: scan ───────────────────────────────────────────────────────────────
 
+// GET = returnera cache, POST = tvinga ny scan
 app.MapGet("/api/apps/scan", (AppScanService scan, IProcessService proc) =>
+    MapApps(scan, proc));
+
+app.MapPost("/api/apps/scan", (AppScanService scan, IProcessService proc) =>
 {
-    var apps = scan.Scan();
-    return apps.Select(a => new
+    scan.Scan();
+    return MapApps(scan, proc);
+});
+
+app.MapGet("/api/apps/scan/info", (AppScanService scan) => new
+{
+    count      = scan.Cached.Count,
+    lastScanned = scan.LastScanned,
+});
+
+static object MapApps(AppScanService scan, IProcessService proc) =>
+    scan.Cached.Select(a => new
     {
         a.Id, a.RepoName, a.ProjectName, a.HttpsPort, a.LaunchProfile,
         IsRunning    = proc.IsRunning(a.Id),
@@ -79,7 +94,6 @@ app.MapGet("/api/apps/scan", (AppScanService scan, IProcessService proc) =>
         GitStatus    = scan.GetGitStatus(a.RepoName),
         LocalhostUrl = a.HttpsPort.HasValue ? $"https://localhost:{a.HttpsPort}" : null,
     });
-});
 
 // Poll running status (ingen re-scan)
 app.MapGet("/api/apps/status", (AppScanService scan, IProcessService proc) =>
