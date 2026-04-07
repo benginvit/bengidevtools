@@ -202,6 +202,7 @@ body {
 }
 .app-dot.running   { background: var(--green); box-shadow: 0 0 4px var(--green); }
 .app-dot.stopped   { background: #555; }
+.app-dot.external  { background: var(--yellow); box-shadow: 0 0 4px var(--yellow); }
 .app-dot.exception { background: var(--red); animation: pulse-exception 1.2s ease-in-out infinite; }
 
 @keyframes pulse-exception {

@@ -10,6 +10,7 @@ import type { ScannedApp } from '../types'
 interface AppState extends ScannedApp {
   checked: boolean
   hasException: boolean
+  isExternal: boolean
 }
 
 export default function AppsPage() {
@@ -30,6 +31,7 @@ export default function AppsPage() {
           ...a,
           checked:      prevMap.get(a.id)?.checked      ?? true,
           hasException: prevMap.get(a.id)?.hasException ?? false,
+          isExternal:   false,
         }))
       })
     } finally { setScanning(false) }
@@ -41,7 +43,7 @@ export default function AppsPage() {
       const map = new Map(statuses.map(s => [s.id, s]))
       setApps(prev => prev.map(a => {
         const s = map.get(a.id)
-        return s ? { ...a, isRunning: s.isRunning, hasException: s.hasException } : a
+        return s ? { ...a, isRunning: s.isRunning, isExternal: s.isExternal, hasException: s.hasException } : a
       }))
     } catch { /* server offline */ }
   }, [])
@@ -202,7 +204,7 @@ function AppRow({ app, selected, onSelect, onCheck, onRefresh, onEditLocalUser }
     finally { setBusy(false) }
   }
 
-  const dotClass = app.hasException ? 'exception' : app.isRunning ? 'running' : 'stopped'
+  const dotClass = app.hasException ? 'exception' : app.isExternal ? 'external' : app.isRunning ? 'running' : 'stopped'
 
   return (
     <div
@@ -217,7 +219,7 @@ function AppRow({ app, selected, onSelect, onCheck, onRefresh, onEditLocalUser }
         onClick={e => e.stopPropagation()}
         style={{ accentColor: 'var(--blue)', width: 13, height: 13, cursor: 'pointer', flexShrink: 0 }}
       />
-      <div className={`app-dot ${dotClass}`} title={app.hasException ? 'Exception!' : app.isRunning ? 'Kör' : 'Stoppad'} />
+      <div className={`app-dot ${dotClass}`} title={app.hasException ? 'Exception!' : app.isExternal ? 'Externt startad' : app.isRunning ? 'Kör' : 'Stoppad'} />
       <span className="app-name">{app.projectName}</span>
       <span className="app-port">{app.httpsPort ? `:${app.httpsPort}` : ''}</span>
       <div className="app-actions" onClick={e => e.stopPropagation()}>

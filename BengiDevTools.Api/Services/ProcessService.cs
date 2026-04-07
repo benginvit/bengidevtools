@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.Sockets;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
 
@@ -9,14 +10,72 @@ public partial class ProcessService : IProcessService
     [GeneratedRegex(@"\bException\b|\bUnhandled\b|fail:|crit:", RegexOptions.IgnoreCase)]
     private static partial Regex ExceptionPattern();
 
-    private readonly Dictionary<string, Process>       _processes = new();
-    private readonly Dictionary<string, AppOutput>     _outputs   = new();
+    private readonly Dictionary<string, Process>   _processes = new();
+    private readonly Dictionary<string, AppOutput> _outputs   = new();
+    private readonly Dictionary<string, int>       _externalPids = new(); // id → pid for externally detected
 
     public bool IsRunning(string id) =>
         _processes.TryGetValue(id, out var p) && !p.HasExited;
 
+    public bool IsExternal(string id) => _externalPids.ContainsKey(id);
+
     public bool HasException(string id) =>
         _outputs.TryGetValue(id, out var o) && o.HasException;
+
+    // Detect externally started processes for a list of apps.
+    // Called from the scan/status endpoint.
+    public void DetectExternal(IEnumerable<ScannedApp> apps)
+    {
+        _lastApps = apps.ToList();
+        var managedIds = new HashSet<string>(_processes.Keys);
+
+        foreach (var app in apps)
+        {
+            if (managedIds.Contains(app.Id)) continue; // already ours
+
+            bool found = false;
+
+            // Web app: try TCP connect to HTTPS port
+            if (app.HttpsPort.HasValue)
+            {
+                try
+                {
+                    using var tcp = new TcpClient();
+                    tcp.Connect("localhost", app.HttpsPort.Value);
+                    found = true;
+                }
+                catch { }
+            }
+
+            // Console app (no port): scan /proc for matching dotnet cmdline
+            if (!found)
+            {
+                found = FindDotnetProcForCsproj(app.CsprojPath) > 0;
+            }
+
+            if (found && !_externalPids.ContainsKey(app.Id))
+                _externalPids[app.Id] = 1;
+            else if (!found)
+                _externalPids.Remove(app.Id);
+        }
+    }
+
+    private static int FindDotnetProcForCsproj(string csprojPath)
+    {
+        try
+        {
+            foreach (var dir in Directory.GetDirectories("/proc"))
+            {
+                var cmdlineFile = Path.Combine(dir, "cmdline");
+                if (!File.Exists(cmdlineFile)) continue;
+                var cmdline = File.ReadAllText(cmdlineFile).Replace('\0', ' ');
+                if (cmdline.Contains("dotnet") && cmdline.Contains(csprojPath))
+                    return int.TryParse(Path.GetFileName(dir), out var pid) ? pid : 0;
+            }
+        }
+        catch { }
+        return 0;
+    }
 
     public IReadOnlyList<string> GetOutputBuffer(string id) =>
         _outputs.TryGetValue(id, out var o) ? o.GetLines() : [];
@@ -34,6 +93,7 @@ public partial class ProcessService : IProcessService
     public async Task StartAsync(string id, string csprojPath, string? launchProfile = null)
     {
         if (IsRunning(id)) return;
+        _externalPids.Remove(id);
 
         var output = _outputs.GetValueOrDefault(id) ?? new AppOutput();
         output.Reset();
@@ -76,10 +136,40 @@ public partial class ProcessService : IProcessService
 
     public async Task StopAsync(string id)
     {
+        // Kill externally detected process by scanning /proc again for exact pid
+        if (_externalPids.ContainsKey(id))
+        {
+            _externalPids.Remove(id);
+            // Find and kill the external dotnet process
+            // We re-scan since we only stored a placeholder pid=1
+            foreach (var app in _lastApps.Where(a => a.Id == id))
+            {
+                var pid = FindDotnetProcForCsproj(app.CsprojPath);
+                if (pid > 0)
+                {
+                    try { Process.GetProcessById(pid).Kill(entireProcessTree: true); } catch { }
+                }
+                // Also kill by port if web app
+                if (app.HttpsPort.HasValue)
+                {
+                    try
+                    {
+                        var fuser = Process.Start(new ProcessStartInfo("fuser", $"-k {app.HttpsPort.Value}/tcp")
+                            { UseShellExecute = false });
+                        fuser?.WaitForExit(2000);
+                    }
+                    catch { }
+                }
+            }
+            return;
+        }
+
         if (!_processes.TryGetValue(id, out var proc)) return;
         try { proc.Kill(entireProcessTree: true); await proc.WaitForExitAsync(); } catch { }
         _processes.Remove(id);
     }
+
+    private IEnumerable<ScannedApp> _lastApps = [];
 
     public async Task RestartAsync(string id, string csprojPath, string? launchProfile = null)
     {

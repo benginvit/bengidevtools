@@ -13,6 +13,7 @@ export interface ScannedApp {
 export interface AppStatus {
   id: string
   isRunning: boolean
+  isExternal: boolean
   hasException: boolean
 }
 

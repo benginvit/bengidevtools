@@ -83,12 +83,16 @@ app.MapGet("/api/apps/scan", (AppScanService scan, IProcessService proc) =>
 
 // Poll running status (ingen re-scan)
 app.MapGet("/api/apps/status", (AppScanService scan, IProcessService proc) =>
-    scan.Cached.Select(a => new
+{
+    proc.DetectExternal(scan.Cached);
+    return scan.Cached.Select(a => new
     {
         a.Id,
-        IsRunning    = proc.IsRunning(a.Id),
+        IsRunning    = proc.IsRunning(a.Id) || proc.IsExternal(a.Id),
+        IsExternal   = proc.IsExternal(a.Id),
         HasException = proc.HasException(a.Id),
-    }));
+    });
+});
 
 // REST poll: output lines from offset (works in codespace where SSE streaming is buffered)
 app.MapGet("/api/apps/lines", (string id, int offset, IProcessService proc) =>
