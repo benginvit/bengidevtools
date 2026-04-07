@@ -3,7 +3,7 @@ import {
   scanApps, getAppStatuses,
   startApp, stopApp, restartApp,
   startSelected, stopAll, startGitRefresh,
-  streamAppOutput,
+  streamAppOutput, getLocalUser, saveLocalUser, exportLocalUserUrl,
 } from '../api'
 import type { ScannedApp } from '../types'
 
@@ -17,6 +17,7 @@ export default function AppsPage() {
   const [scanning, setScanning]       = useState(false)
   const [gitLoading, setGitLoading]   = useState(false)
   const [selectedId, setSelectedId]   = useState<string | null>(null)
+  const [localUserEditId, setLocalUserEditId] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const scan = useCallback(async () => {
@@ -87,6 +88,15 @@ export default function AppsPage() {
           <button className="btn" onClick={handleGitRefresh} disabled={gitLoading || apps.length === 0} title="Uppdatera git-status">
             {gitLoading ? '⟳' : '⟳ Git'}
           </button>
+          <a
+            className="btn"
+            href={exportLocalUserUrl()}
+            download="appsettings-localuser.zip"
+            title="Exportera alla localuser-filer"
+            style={{ textDecoration: 'none' }}
+          >
+            ↓ Exportera
+          </a>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0 8px', fontSize: 12 }}>
@@ -139,6 +149,7 @@ export default function AppsPage() {
                     onSelect={() => setSelectedId(id => id === app.id ? null : app.id)}
                     onCheck={checked => setApps(prev => prev.map(a => a.id === app.id ? { ...a, checked } : a))}
                     onRefresh={pollStatus}
+                    onEditLocalUser={() => setLocalUserEditId(app.id)}
                   />
                 ))}
               </div>
@@ -156,18 +167,32 @@ export default function AppsPage() {
             </div>
         }
       </div>
+
+      {/* ── LocalUser editor modal ── */}
+      {localUserEditId && (
+        <LocalUserModal
+          id={localUserEditId}
+          name={apps.find(a => a.id === localUserEditId)?.projectName ?? localUserEditId}
+          onClose={() => setLocalUserEditId(null)}
+          onSaved={() => {
+            setLocalUserEditId(null)
+            scan()
+          }}
+        />
+      )}
     </div>
   )
 }
 
 // ── App row ───────────────────────────────────────────────────────────────────
 
-function AppRow({ app, selected, onSelect, onCheck, onRefresh }: {
+function AppRow({ app, selected, onSelect, onCheck, onRefresh, onEditLocalUser }: {
   app: AppState
   selected: boolean
   onSelect: () => void
   onCheck: (v: boolean) => void
   onRefresh: () => void
+  onEditLocalUser: () => void
 }) {
   const [busy, setBusy] = useState(false)
 
@@ -196,12 +221,86 @@ function AppRow({ app, selected, onSelect, onCheck, onRefresh }: {
       <span className="app-name">{app.projectName}</span>
       <span className="app-port">{app.httpsPort ? `:${app.httpsPort}` : ''}</span>
       <div className="app-actions" onClick={e => e.stopPropagation()}>
+        <button
+          className="btn sm"
+          title={app.hasLocalUser ? 'Redigera appsettings.localuser.json' : 'Skapa appsettings.localuser.json'}
+          onClick={onEditLocalUser}
+          style={{ opacity: app.hasLocalUser ? 1 : 0.4 }}
+        >⚙</button>
         {!app.isRunning
           ? <button className="btn sm" disabled={busy} onClick={() => act(() => startApp(app.id))}>▶</button>
           : <>
               <button className="btn sm" disabled={busy} onClick={() => act(() => restartApp(app.id))}>⟳</button>
               <button className="btn sm danger" disabled={busy} onClick={() => act(() => stopApp(app.id))}>■</button>
             </>
+        }
+      </div>
+    </div>
+  )
+}
+
+// ── LocalUser modal ───────────────────────────────────────────────────────────
+
+function LocalUserModal({ id, name, onClose, onSaved }: {
+  id: string
+  name: string
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [content, setContent] = useState('')
+  const [exists, setExists]   = useState(false)
+  const [path, setPath]       = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving]   = useState(false)
+  const [error, setError]     = useState<string | null>(null)
+
+  useEffect(() => {
+    getLocalUser(id).then(r => {
+      setContent(r.content ?? '{\n  \n}')
+      setExists(r.exists)
+      setPath(r.path)
+      setLoading(false)
+    })
+  }, [id])
+
+  const handleSave = async () => {
+    setError(null)
+    setSaving(true)
+    try {
+      await saveLocalUser(id, content)
+      onSaved()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <div style={{ fontWeight: 600, color: 'var(--blue)' }}>{name}</div>
+            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 2 }}>appsettings.localuser.json</div>
+            {path && <div style={{ fontSize: 10, color: '#555', marginTop: 1 }}>{path}</div>}
+          </div>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            {!exists && <span style={{ fontSize: 11, color: 'var(--yellow)' }}>Ny fil</span>}
+            <button className="btn sm primary" onClick={handleSave} disabled={saving || loading}>
+              {saving ? '...' : exists ? 'Spara' : 'Skapa'}
+            </button>
+            <button className="btn sm" onClick={onClose}>Avbryt</button>
+          </div>
+        </div>
+        {error && <div style={{ padding: '4px 12px', color: 'var(--red)', fontSize: 11 }}>{error}</div>}
+        {loading
+          ? <div style={{ padding: 16, color: 'var(--muted)', fontSize: 12 }}>Laddar...</div>
+          : <textarea
+              className="modal-editor"
+              value={content}
+              onChange={e => setContent(e.target.value)}
+              spellCheck={false}
+              autoFocus
+            />
         }
       </div>
     </div>

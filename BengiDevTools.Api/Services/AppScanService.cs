@@ -8,7 +8,13 @@ public record ScannedApp(
     string ProjectName,
     string CsprojPath,
     int?   HttpsPort,
-    string? LaunchProfile);
+    string? LaunchProfile)
+{
+    public string LocalUserPath =>
+        Path.Combine(Path.GetDirectoryName(CsprojPath)!, "appsettings.localuser.json");
+
+    public bool HasLocalUser => File.Exists(LocalUserPath);
+};
 
 public class AppScanService
 {

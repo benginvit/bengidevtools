@@ -185,7 +185,7 @@ body {
 
 .app-row {
   display: grid;
-  grid-template-columns: 14px 10px 1fr 52px 68px;
+  grid-template-columns: 14px 10px 1fr 52px 96px;
   align-items: center;
   gap: 6px;
   padding: 3px 6px;
@@ -218,6 +218,54 @@ body {
 .git-status.miss   { color: var(--muted); }
 
 .app-actions { display: flex; gap: 3px; justify-content: flex-end; align-items: center; }
+
+/* ─── LocalUser modal ──────────────────────────────────────────────────────── */
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: min(720px, 90vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.modal-editor {
+  flex: 1;
+  min-height: 300px;
+  max-height: 60vh;
+  background: var(--bg);
+  color: var(--text);
+  border: none;
+  padding: 12px 14px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  tab-size: 2;
+}
 
 /* ─── Build page ───────────────────────────────────────────────────────────── */
 

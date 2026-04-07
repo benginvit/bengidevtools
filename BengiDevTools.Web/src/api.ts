@@ -68,6 +68,23 @@ export async function stopAll(): Promise<void> {
   await fetch(`${BASE}/apps/stop-all`, { method: 'POST' })
 }
 
+export async function getLocalUser(id: string): Promise<{ content: string | null; path: string; exists: boolean }> {
+  return (await fetch(`${BASE}/apps/localuser?id=${encodeURIComponent(id)}`)).json()
+}
+
+export async function saveLocalUser(id: string, content: string): Promise<void> {
+  const res = await fetch(`${BASE}/apps/localuser?id=${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'text/plain' },
+    body: content,
+  })
+  if (!res.ok) throw new Error(await res.text())
+}
+
+export function exportLocalUserUrl(): string {
+  return `${BASE}/apps/localuser/export`
+}
+
 export function streamAppOutput(
   id: string,
   onLine: (line: string) => void,

@@ -5,6 +5,7 @@ export interface ScannedApp {
   httpsPort: number | null
   launchProfile: string | null
   isRunning: boolean
+  hasLocalUser: boolean
   gitStatus: string
   localhostUrl: string | null
 }

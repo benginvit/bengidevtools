@@ -73,6 +73,7 @@ app.MapGet("/api/apps/scan", (AppScanService scan, IProcessService proc) =>
     {
         a.Id, a.RepoName, a.ProjectName, a.HttpsPort, a.LaunchProfile,
         IsRunning    = proc.IsRunning(a.Id),
+        HasLocalUser = a.HasLocalUser,
         GitStatus    = scan.GetGitStatus(a.RepoName),
         LocalhostUrl = a.HttpsPort.HasValue ? $"https://localhost:{a.HttpsPort}" : null,
     });
@@ -166,6 +167,53 @@ app.MapPost("/api/apps/stop-all", async (AppScanService scan, IProcessService pr
     foreach (var a in scan.Cached.Where(x => proc.IsRunning(x.Id)))
         await proc.StopAsync(a.Id);
     return Results.Ok();
+});
+
+/// ─── Apps: localuser settings ─────────────────────────────────────────────────
+
+app.MapGet("/api/apps/localuser", (string id, AppScanService scan) =>
+{
+    var a = scan.GetById(id);
+    if (a is null) return Results.NotFound();
+    var content = a.HasLocalUser ? File.ReadAllText(a.LocalUserPath) : null;
+    return Results.Ok(new { content, path = a.LocalUserPath, exists = a.HasLocalUser });
+});
+
+app.MapPut("/api/apps/localuser", async (string id, HttpContext ctx, AppScanService scan) =>
+{
+    var a = scan.GetById(id);
+    if (a is null) return Results.NotFound();
+    var body = await new StreamReader(ctx.Request.Body).ReadToEndAsync();
+    // Validate JSON
+    try { JsonDocument.Parse(body); } catch { return Results.BadRequest("Ogiltig JSON"); }
+    await File.WriteAllTextAsync(a.LocalUserPath, body);
+    return Results.Ok();
+});
+
+app.MapGet("/api/apps/localuser/export", (AppScanService scan) =>
+{
+    var files = scan.Cached
+        .Where(a => a.HasLocalUser)
+        .Select(a => (a.Id, a.LocalUserPath))
+        .ToList();
+
+    if (files.Count == 0)
+        return Results.NotFound("Inga localuser-filer hittades");
+
+    var ms = new MemoryStream();
+    using (var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+    {
+        foreach (var (id, path) in files)
+        {
+            var entryName = id.Replace('/', '_') + "_appsettings.localuser.json";
+            var entry = zip.CreateEntry(entryName);
+            using var entryStream = entry.Open();
+            using var fileStream  = File.OpenRead(path);
+            fileStream.CopyTo(entryStream);
+        }
+    }
+    ms.Position = 0;
+    return Results.File(ms, "application/zip", "appsettings-localuser.zip");
 });
 
 // ─── Apps: git status SSE ─────────────────────────────────────────────────────
