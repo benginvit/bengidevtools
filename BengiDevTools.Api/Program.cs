@@ -15,6 +15,7 @@ builder.Services.AddSingleton<IBuildService,    BuildService>();
 builder.Services.AddSingleton<IProcessService,  ProcessService>();
 builder.Services.AddSingleton<IGitService,      GitService>();
 builder.Services.AddSingleton<AppScanService>();
+builder.Services.AddHostedService<GitScanBackgroundService>();
 
 var app = builder.Build();
 
@@ -105,6 +106,7 @@ app.MapGet("/api/apps/status", (AppScanService scan, IProcessService proc) =>
         IsRunning    = proc.IsRunning(a.Id) || proc.IsExternal(a.Id),
         IsExternal   = proc.IsExternal(a.Id),
         HasException = proc.HasException(a.Id),
+        GitStatus    = scan.GetGitStatus(a.RepoName),
     });
 });
 

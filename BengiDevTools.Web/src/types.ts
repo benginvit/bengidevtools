@@ -15,6 +15,7 @@ export interface AppStatus {
   isRunning: boolean
   isExternal: boolean
   hasException: boolean
+  gitStatus: string
 }
 
 export interface RepoInfo {

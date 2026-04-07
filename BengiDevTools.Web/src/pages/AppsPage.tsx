@@ -58,7 +58,7 @@ export default function AppsPage() {
       const map = new Map(statuses.map(s => [s.id, s]))
       setApps(prev => prev.map(a => {
         const s = map.get(a.id)
-        return s ? { ...a, isRunning: s.isRunning, isExternal: s.isExternal, hasException: s.hasException } : a
+        return s ? { ...a, isRunning: s.isRunning, isExternal: s.isExternal, hasException: s.hasException, gitStatus: s.gitStatus } : a
       }))
     } catch { /* server offline */ }
   }, [])
