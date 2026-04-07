@@ -449,20 +449,30 @@ app.MapGet("/api/debug/swagger", async (string appId, AppScanService scan) =>
     var a = scan.GetById(appId);
     if (a?.HttpsPort is null) return Results.NotFound("App saknar HTTPS-port");
 
-    try
+    using var http = new HttpClient(new HttpClientHandler
     {
-        using var http = new HttpClient(new HttpClientHandler
+        ServerCertificateCustomValidationCallback = (_, _, _, _) => true
+    });
+    http.Timeout = TimeSpan.FromSeconds(5);
+
+    // Try multiple common OpenAPI paths
+    string[] paths = [
+        $"https://localhost:{a.HttpsPort}/openapi/v1.json",
+        $"https://localhost:{a.HttpsPort}/swagger/v1/swagger.json",
+        $"https://localhost:{a.HttpsPort}/openapi/v1/openapi.json",
+    ];
+
+    foreach (var url in paths)
+    {
+        try
         {
-            ServerCertificateCustomValidationCallback = (_, _, _, _) => true
-        });
-        http.Timeout = TimeSpan.FromSeconds(5);
-        var json = await http.GetStringAsync($"https://localhost:{a.HttpsPort}/swagger/v1/swagger.json");
-        return Results.Content(json, "application/json");
+            var json = await http.GetStringAsync(url);
+            return Results.Content(json, "application/json");
+        }
+        catch { }
     }
-    catch (Exception ex)
-    {
-        return Results.Ok(new { error = ex.Message });
-    }
+
+    return Results.Ok(new { error = $"Ingen OpenAPI/Swagger endpoint hittades på port {a.HttpsPort}. Kontrollera att appen exponerar /openapi/v1.json eller /swagger/v1/swagger.json." });
 });
 
 // ─── Debug: Scenarios ──────────────────────────────────────────────────────────

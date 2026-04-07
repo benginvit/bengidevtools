@@ -366,6 +366,20 @@ body {
 .debug-script-row:hover .debug-delete-btn { opacity: 1; }
 .debug-delete-btn:hover { background: var(--red); color: #fff; opacity: 1; }
 
+.debug-run-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 1px 4px;
+  border-radius: 2px;
+  opacity: 0;
+  flex-shrink: 0;
+}
+.debug-script-row:hover .debug-run-btn { opacity: 1; }
+.debug-run-btn:hover { background: var(--green); color: #fff; opacity: 1; }
+
 .debug-editor-panel {
   display: flex;
   flex-direction: column;
