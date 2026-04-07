@@ -72,11 +72,33 @@ export function streamAppOutput(
   id: string,
   onLine: (line: string) => void,
   onDone?: () => void,
-): EventSource {
-  const source = new EventSource(`${BASE}/apps/output?id=${encodeURIComponent(id)}`)
-  source.onmessage = (e) => onLine(JSON.parse(e.data) as string)
-  source.onerror   = () => { source.close(); onDone?.() }
-  return source
+): AbortController {
+  const ctrl = new AbortController()
+  ;(async () => {
+    try {
+      const response = await fetch(
+        `${BASE}/apps/output?id=${encodeURIComponent(id)}`,
+        { signal: ctrl.signal },
+      )
+      const reader = response.body!.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const parts = buffer.split('\n')
+        buffer = parts.pop() ?? ''
+        for (const part of parts) {
+          if (part.startsWith('data: ')) {
+            try { onLine(JSON.parse(part.slice(6)) as string) } catch { /* skip */ }
+          }
+        }
+      }
+    } catch { /* aborted or connection lost */ }
+    onDone?.()
+  })()
+  return ctrl
 }
 
 export function startGitRefresh(

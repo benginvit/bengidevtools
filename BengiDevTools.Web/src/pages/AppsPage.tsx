@@ -213,18 +213,18 @@ function AppRow({ app, selected, onSelect, onCheck, onRefresh }: {
 function DebugConsole({ id, name }: { id: string; name: string }) {
   const [lines, setLines]     = useState<string[]>([])
   const logRef                = useRef<HTMLDivElement>(null)
-  const sourceRef             = useRef<EventSource | null>(null)
+  const ctrlRef               = useRef<AbortController | null>(null)
 
   useEffect(() => {
     setLines([])
-    sourceRef.current?.close()
-    sourceRef.current = streamAppOutput(id, line => {
+    ctrlRef.current?.abort()
+    ctrlRef.current = streamAppOutput(id, line => {
       setLines(prev => {
         const next = [...prev, line]
         return next.length > 2000 ? next.slice(-2000) : next
       })
     })
-    return () => { sourceRef.current?.close() }
+    return () => { ctrlRef.current?.abort() }
   }, [id])
 
   // Auto-scroll till botten
