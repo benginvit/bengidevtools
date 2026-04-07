@@ -1,3 +1,7 @@
+Console.OutputEncoding = System.Text.Encoding.UTF8;
+var autoFlush = new System.IO.StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true };
+Console.SetOut(autoFlush);
+
 Console.WriteLine("[info] USB.Uppbord.Host.NSB starting...");
 
 var cts = new CancellationTokenSource();

@@ -1,3 +1,7 @@
+Console.OutputEncoding = System.Text.Encoding.UTF8;
+var autoFlush = new System.IO.StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true };
+Console.SetOut(autoFlush);
+
 Console.WriteLine("[info] USB.Subjekt.Host.NSB starting...");
 Console.WriteLine("[info] Connecting to message bus...");
 
