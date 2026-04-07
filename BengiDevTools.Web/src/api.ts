@@ -85,6 +85,87 @@ export function exportLocalUserUrl(): string {
   return `${BASE}/apps/localuser/export`
 }
 
+// ─── Debug ────────────────────────────────────────────────────────────────────
+
+import type { DebugScript, Scenario, SwaggerPath } from './types'
+
+export async function getDebugScripts(): Promise<DebugScript[]> {
+  return (await fetch(`${BASE}/debug/scripts`)).json()
+}
+
+export async function getDebugScript(path: string): Promise<{ content: string }> {
+  return (await fetch(`${BASE}/debug/script?path=${encodeURIComponent(path)}`)).json()
+}
+
+export async function saveDebugScript(path: string, content: string): Promise<void> {
+  await fetch(`${BASE}/debug/script?path=${encodeURIComponent(path)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'text/plain' },
+    body: content,
+  })
+}
+
+export async function newDebugScript(name: string, type: string): Promise<{ path: string }> {
+  return (await fetch(`${BASE}/debug/scripts/new`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, type }),
+  })).json()
+}
+
+export async function deleteDebugScript(path: string): Promise<void> {
+  await fetch(`${BASE}/debug/script?path=${encodeURIComponent(path)}`, { method: 'DELETE' })
+}
+
+export async function executeSql(sql: string): Promise<{
+  success: boolean; error?: string
+  results?: Array<
+    | { type: 'select'; columns: string[]; rows: Record<string, unknown>[] }
+    | { type: 'nonquery'; rowsAffected: number }
+  >
+}> {
+  return (await fetch(`${BASE}/debug/execute-sql`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sql }),
+  })).json()
+}
+
+export async function getSwagger(appId: string): Promise<SwaggerPath[]> {
+  try {
+    const res = await fetch(`${BASE}/debug/swagger?appId=${encodeURIComponent(appId)}`)
+    const json = await res.json()
+    if (json.error) return []
+    // Parse OpenAPI paths
+    const paths: SwaggerPath[] = []
+    for (const [path, methods] of Object.entries(json.paths ?? {})) {
+      for (const method of Object.keys(methods as object)) {
+        if (['get','post','put','patch','delete'].includes(method)) {
+          const op = (methods as Record<string, { summary?: string }>)[method]
+          paths.push({ method: method.toUpperCase(), path, summary: op.summary })
+        }
+      }
+    }
+    return paths.sort((a, b) => a.path.localeCompare(b.path))
+  } catch { return [] }
+}
+
+export async function getScenarios(): Promise<Scenario[]> {
+  return (await fetch(`${BASE}/debug/scenarios`)).json()
+}
+
+export async function saveScenario(scenario: Scenario): Promise<void> {
+  await fetch(`${BASE}/debug/scenarios`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(scenario),
+  })
+}
+
+export async function deleteScenario(id: string): Promise<void> {
+  await fetch(`${BASE}/debug/scenarios/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
 export function streamAppOutput(
   id: string,
   onLine: (line: string) => void,

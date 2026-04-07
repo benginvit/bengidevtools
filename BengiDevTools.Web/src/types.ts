@@ -23,6 +23,31 @@ export interface RepoInfo {
 
 export interface Settings {
   repoRootPath: string
+  sqlConnectionString: string
+  debugScriptsPath: string
+}
+
+export interface DebugScript {
+  name: string
+  type: 'clean' | 'feed' | 'other'
+  path: string
+  relativePath: string
+}
+
+export interface Scenario {
+  id: string
+  name: string
+  appId: string
+  method: string
+  url: string
+  body: string
+  headers: Record<string, string>
+}
+
+export interface SwaggerPath {
+  method: string
+  path: string
+  summary?: string
 }
 
 export interface BuildEvent {
