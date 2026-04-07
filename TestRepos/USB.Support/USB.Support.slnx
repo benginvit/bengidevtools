@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Support.Host/Support.Host.csproj" />
+  <Project Path="Support.IGUN.Host/Support.IGUN.Host.csproj" />
+</Solution>

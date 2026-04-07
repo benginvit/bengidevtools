@@ -1,0 +1,9 @@
+{
+  "profiles": {
+    "https": {
+      "commandName": "Project",
+      "applicationUrl": "https://localhost:7803;http://localhost:5803",
+      "environmentVariables": { "ASPNETCORE_ENVIRONMENT": "Development" }
+    }
+  }
+}
