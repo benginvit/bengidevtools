@@ -39,7 +39,7 @@ public partial class ProcessService : IProcessService
         output.Reset();
         _outputs[id] = output;
 
-        var args = $"run --no-build --project \"{csprojPath}\"";
+        var args = $"run --project \"{csprojPath}\"";
         if (launchProfile is not null) args += $" --launch-profile \"{launchProfile}\"";
 
         var psi = new ProcessStartInfo("dotnet")
