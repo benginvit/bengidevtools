@@ -87,6 +87,14 @@ app.MapGet("/api/apps/status", (AppScanService scan, IProcessService proc) =>
         HasException = proc.HasException(a.Id),
     }));
 
+// REST poll: output lines from offset (works in codespace where SSE streaming is buffered)
+app.MapGet("/api/apps/lines", (string id, int offset, IProcessService proc) =>
+{
+    var all = proc.GetOutputBuffer(id);
+    var slice = offset < all.Count ? all.Skip(offset).ToArray() : [];
+    return Results.Ok(new { lines = slice, total = all.Count });
+});
+
 // SSE: live output per app
 app.MapGet("/api/apps/output", async (string id, HttpContext ctx, IProcessService proc) =>
 {

@@ -71,32 +71,22 @@ export async function stopAll(): Promise<void> {
 export function streamAppOutput(
   id: string,
   onLine: (line: string) => void,
-  onDone?: () => void,
 ): AbortController {
   const ctrl = new AbortController()
+  let offset = 0
   ;(async () => {
-    try {
-      const response = await fetch(
-        `${BASE}/apps/output?id=${encodeURIComponent(id)}`,
-        { signal: ctrl.signal },
-      )
-      const reader = response.body!.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const parts = buffer.split('\n')
-        buffer = parts.pop() ?? ''
-        for (const part of parts) {
-          if (part.startsWith('data: ')) {
-            try { onLine(JSON.parse(part.slice(6)) as string) } catch { /* skip */ }
-          }
-        }
-      }
-    } catch { /* aborted or connection lost */ }
-    onDone?.()
+    while (!ctrl.signal.aborted) {
+      try {
+        const res = await fetch(
+          `${BASE}/apps/lines?id=${encodeURIComponent(id)}&offset=${offset}`,
+          { signal: ctrl.signal },
+        )
+        const { lines } = await res.json() as { lines: string[]; total: number }
+        for (const line of lines) onLine(line)
+        offset += lines.length
+      } catch { break }
+      await new Promise(r => setTimeout(r, 800))
+    }
   })()
   return ctrl
 }
