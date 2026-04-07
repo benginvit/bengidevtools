@@ -270,16 +270,22 @@ export default function DebugPage() {
                     <div className="scenario-row">
                       <label className="form-label" style={{ width: 60, flexShrink: 0 }}>Endpoint</label>
                       <select className="input" defaultValue="" onChange={e => {
-                        const [method, ...rest] = e.target.value.split(' ')
-                        const path = rest.join(' ')
+                        const selected = swagger.find(p => `${p.method} ${p.path}` === e.target.value)
+                        if (!selected) return
                         const app = appsRef.current.find(a => a.id === form.appId)
                         const base = app?.httpsPort ? `https://localhost:${app.httpsPort}` : ''
-                        setForm(f => ({ ...f, method, url: base + path }))
+                        setForm(f => ({
+                          ...f,
+                          method: selected.method,
+                          url: base + selected.path,
+                          body: selected.exampleBody ?? f.body,
+                        }))
                       }}>
                         <option value="">— välj endpoint —</option>
                         {swagger.map(p => (
                           <option key={p.method + p.path} value={`${p.method} ${p.path}`}>
                             {p.method} {p.path}{p.summary ? ` — ${p.summary}` : ''}
+                            {p.exampleBody ? ' ✦' : ''}
                           </option>
                         ))}
                       </select>

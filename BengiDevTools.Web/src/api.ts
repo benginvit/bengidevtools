@@ -136,18 +136,83 @@ export async function getSwagger(appId: string): Promise<SwaggerPath[]> {
     const res = await fetch(`${BASE}/debug/swagger?appId=${encodeURIComponent(appId)}`)
     const json = await res.json()
     if (json.error) return []
-    // Parse OpenAPI paths
+
     const paths: SwaggerPath[] = []
     for (const [path, methods] of Object.entries(json.paths ?? {})) {
       for (const method of Object.keys(methods as object)) {
-        if (['get','post','put','patch','delete'].includes(method)) {
-          const op = (methods as Record<string, { summary?: string }>)[method]
-          paths.push({ method: method.toUpperCase(), path, summary: op.summary })
+        if (!['get','post','put','patch','delete'].includes(method)) continue
+        const op = (methods as Record<string, {
+          summary?: string
+          requestBody?: { content?: { 'application/json'?: { schema?: unknown; example?: unknown } } }
+        }>)[method]
+
+        let exampleBody: string | undefined
+        if (['post','put','patch'].includes(method)) {
+          const jsonContent = op.requestBody?.content?.['application/json']
+          if (jsonContent?.example !== undefined) {
+            exampleBody = JSON.stringify(jsonContent.example, null, 2)
+          } else if (jsonContent?.schema) {
+            exampleBody = JSON.stringify(generateExample(jsonContent.schema as JsonSchema, json), null, 2)
+          }
         }
+
+        paths.push({ method: method.toUpperCase(), path, summary: op.summary, exampleBody })
       }
     }
     return paths.sort((a, b) => a.path.localeCompare(b.path))
   } catch { return [] }
+}
+
+// ── JSON Schema → example object ──────────────────────────────────────────────
+
+interface JsonSchema {
+  type?: string
+  properties?: Record<string, JsonSchema>
+  items?: JsonSchema
+  $ref?: string
+  example?: unknown
+  default?: unknown
+  enum?: unknown[]
+  format?: string
+  nullable?: boolean
+}
+
+function resolveRef(ref: string, spec: Record<string, unknown>): JsonSchema {
+  // e.g. #/components/schemas/Foo
+  const parts = ref.replace('#/', '').split('/')
+  let node: unknown = spec
+  for (const p of parts) node = (node as Record<string, unknown>)[p]
+  return (node ?? {}) as JsonSchema
+}
+
+function generateExample(schema: JsonSchema, spec: Record<string, unknown>, depth = 0): unknown {
+  if (depth > 5) return null
+  if (schema.$ref) schema = resolveRef(schema.$ref, spec)
+  if (schema.example !== undefined) return schema.example
+  if (schema.default  !== undefined) return schema.default
+  if (schema.enum?.length)           return schema.enum[0]
+
+  switch (schema.type) {
+    case 'object': {
+      const obj: Record<string, unknown> = {}
+      for (const [k, v] of Object.entries(schema.properties ?? {}))
+        obj[k] = generateExample(v, spec, depth + 1)
+      return obj
+    }
+    case 'array':
+      return [generateExample(schema.items ?? { type: 'string' }, spec, depth + 1)]
+    case 'integer':
+    case 'number':
+      return schema.format === 'float' || schema.format === 'double' ? 0.0 : 0
+    case 'boolean': return false
+    case 'string':
+      if (schema.format === 'date-time') return new Date().toISOString()
+      if (schema.format === 'date')      return new Date().toISOString().split('T')[0]
+      if (schema.format === 'uuid')      return '00000000-0000-0000-0000-000000000000'
+      return ''
+    default:
+      return null
+  }
 }
 
 export async function getScenarios(): Promise<Scenario[]> {

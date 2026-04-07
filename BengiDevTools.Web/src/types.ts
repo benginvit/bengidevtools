@@ -49,6 +49,7 @@ export interface SwaggerPath {
   method: string
   path: string
   summary?: string
+  exampleBody?: string
 }
 
 export interface BuildEvent {
