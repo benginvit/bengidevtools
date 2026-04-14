@@ -20,8 +20,34 @@ public partial class ProcessService : IProcessService
     public bool IsExternal(string id) => _externalPids.ContainsKey(id);
     public int GetPid(string id)
     {
-        if (_processes.TryGetValue(id, out var p) && !p.HasExited) return p.Id;
+        if (_processes.TryGetValue(id, out var p) && !p.HasExited)
+        {
+            // dotnet run spawns the actual app as a child process.
+            // Attach to the child so breakpoints work, not the dotnet run wrapper.
+            var child = GetChildPid(p.Id);
+            return child > 0 ? child : p.Id;
+        }
         return _externalPids.GetValueOrDefault(id, -1);
+    }
+
+    private static int GetChildPid(int parentPid)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo("/bin/bash", $"-c \"pgrep -P {parentPid} 2>/dev/null | head -1\"")
+            {
+                UseShellExecute        = false,
+                CreateNoWindow         = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+            };
+            using var proc = Process.Start(psi);
+            if (proc is null) return 0;
+            var output = proc.StandardOutput.ReadToEnd().Trim();
+            proc.WaitForExit(500);
+            return int.TryParse(output, out var pid) ? pid : 0;
+        }
+        catch { return 0; }
     }
 
     public bool HasException(string id) =>
