@@ -22,8 +22,24 @@ public partial class ProcessService : IProcessService
     {
         if (_processes.TryGetValue(id, out var p) && !p.HasExited)
         {
-            // dotnet run spawns the actual app as a child process.
-            // Attach to the child so breakpoints work, not the dotnet run wrapper.
+            // On Windows: dotnet run → MSBuild (intermediate) → App.dll (target).
+            // Skip the child lookup and instead find the app process by project name in
+            // cmdlines, filtering out MSBuild entries.
+            if (OperatingSystem.IsWindows())
+            {
+                var app = _lastApps.FirstOrDefault(a => a.Id == id);
+                if (app is not null)
+                {
+                    var projectName = Path.GetFileNameWithoutExtension(app.CsprojPath);
+                    var appPid = _lastDotnetCmdlines
+                        .Where(c => c.Contains(projectName, StringComparison.OrdinalIgnoreCase)
+                                 && !c.Contains("MSBuild", StringComparison.OrdinalIgnoreCase))
+                        .Select(c => int.TryParse(c.Split(' ', 2)[0], out var parsed) ? parsed : 0)
+                        .FirstOrDefault(parsed => parsed > 0);
+                    if (appPid > 0) return appPid;
+                }
+            }
+            // On Linux: dotnet run spawns the actual app as a child process.
             var child = GetChildPid(p.Id);
             return child > 0 ? child : p.Id;
         }
@@ -59,24 +75,8 @@ public partial class ProcessService : IProcessService
 
     private static int GetChildPidWindows(int parentPid)
     {
-        try
-        {
-            // Use PowerShell to find child dotnet.exe processes
-            var psi = new ProcessStartInfo("powershell.exe",
-                $"-NoProfile -Command \"(Get-WmiObject Win32_Process -Filter 'ParentProcessId={parentPid} AND Name=\\'dotnet.exe\\'').ProcessId | Select-Object -First 1\"")
-            {
-                UseShellExecute        = false,
-                CreateNoWindow         = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-            };
-            using var proc = Process.Start(psi);
-            if (proc is null) return 0;
-            var output = proc.StandardOutput.ReadToEnd().Trim();
-            proc.WaitForExit(2000);
-            return int.TryParse(output, out var pid) ? pid : 0;
-        }
-        catch { return 0; }
+        // Not used — Windows uses cmdline search instead (see GetPid)
+        return 0;
     }
 
     public bool HasException(string id) =>
@@ -164,10 +164,21 @@ public partial class ProcessService : IProcessService
         error = "";
         try
         {
-            var shell = OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/bash";
-            var args  = OperatingSystem.IsWindows()
-                ? "/c \"wmic process where name='dotnet.exe' get commandline /format:list 2>nul\""
-                : "-c \"pgrep -af dotnet 2>/dev/null\"";
+            string shell, args;
+            if (OperatingSystem.IsWindows())
+            {
+                // PowerShell EncodedCommand avoids all quoting issues.
+                // Output format: "PID CommandLine" per line — same as pgrep -af on Linux.
+                var script  = "Get-CimInstance Win32_Process -Filter \"Name='dotnet.exe'\" | ForEach-Object { $_.ProcessId.ToString() + ' ' + $_.CommandLine }";
+                var encoded = Convert.ToBase64String(System.Text.Encoding.Unicode.GetBytes(script));
+                shell = "powershell.exe";
+                args  = $"-NoProfile -EncodedCommand {encoded}";
+            }
+            else
+            {
+                shell = "/bin/bash";
+                args  = "-c \"pgrep -af dotnet 2>/dev/null\"";
+            }
 
             var psi = new ProcessStartInfo(shell, args)
             {
