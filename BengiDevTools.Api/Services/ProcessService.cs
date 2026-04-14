@@ -28,16 +28,19 @@ public partial class ProcessService : IProcessService
         _lastApps = apps.ToList();
         var managedIds = new HashSet<string>(_processes.Keys);
 
-        // Read listening ports from /proc/net/tcp(6) once — no sockets, no exceptions.
-        var listeningPorts = ReadListeningPorts();
+        // Read listening ports and dotnet cmdlines once per poll — no .NET /proc access.
+        var listeningPorts  = ReadListeningPorts();
+        var dotnetCmdlines  = ReadDotnetCmdlines();
 
         foreach (var app in _lastApps)
         {
             if (managedIds.Contains(app.Id)) continue;
 
+            // Match on csproj filename — handles both absolute and relative paths in cmdline.
+            var csprojFile = Path.GetFileName(app.CsprojPath);
             var found = app.HttpsPort.HasValue
                 ? listeningPorts.Contains(app.HttpsPort.Value)
-                : IsDotnetProcessRunning(app.CsprojPath);
+                : dotnetCmdlines.Any(c => c.Contains(csprojFile, StringComparison.Ordinal));
 
             if (found && !_externalPids.ContainsKey(app.Id))
                 _externalPids[app.Id] = 1;
@@ -48,26 +51,25 @@ public partial class ProcessService : IProcessService
         return Task.CompletedTask;
     }
 
-    private static bool IsDotnetProcessRunning(string csprojPath)
+    // Run pgrep once to get all dotnet process cmdlines — avoids .NET /proc access and exceptions.
+    private static List<string> ReadDotnetCmdlines()
     {
         try
         {
-            foreach (var dir in Directory.GetDirectories("/proc"))
+            var psi = new ProcessStartInfo("pgrep", "-af dotnet")
             {
-                if (!int.TryParse(Path.GetFileName(dir), out _)) continue; // only PIDs
-                if (!Directory.Exists(dir)) continue;                       // process died before we got here
-                try
-                {
-                    var cmdline = File.ReadAllText(Path.Combine(dir, "cmdline")).Replace('\0', ' ');
-                    if (cmdline.Contains("dotnet", StringComparison.Ordinal) &&
-                        cmdline.Contains(csprojPath, StringComparison.Ordinal))
-                        return true;
-                }
-                catch { }
-            }
+                UseShellExecute        = false,
+                CreateNoWindow         = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+            };
+            using var proc = Process.Start(psi);
+            if (proc is null) return [];
+            var output = proc.StandardOutput.ReadToEnd();
+            proc.WaitForExit(1000);
+            return [.. output.Split('\n', StringSplitOptions.RemoveEmptyEntries)];
         }
-        catch { }
-        return false;
+        catch { return []; }
     }
 
     private static HashSet<int> ReadListeningPorts()
