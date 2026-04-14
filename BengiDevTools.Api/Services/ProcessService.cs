@@ -84,29 +84,26 @@ public partial class ProcessService : IProcessService
         catch { return []; }
     }
 
-    // Run pgrep with absolute path to avoid PATH issues under the debugger.
+    // Run pgrep via bash so it resolves through bash's PATH regardless of the
+    // environment the .NET process was launched in (e.g. VS Code debugger).
     private static List<string> ReadDotnetCmdlines()
     {
-        foreach (var pgrepPath in new[] { "/usr/bin/pgrep", "/bin/pgrep", "pgrep" })
+        try
         {
-            try
+            var psi = new ProcessStartInfo("/bin/bash", "-c \"pgrep -af dotnet 2>/dev/null\"")
             {
-                var psi = new ProcessStartInfo(pgrepPath, "-af dotnet")
-                {
-                    UseShellExecute        = false,
-                    CreateNoWindow         = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError  = true,
-                };
-                using var proc = Process.Start(psi);
-                if (proc is null) continue;
-                var output = proc.StandardOutput.ReadToEnd();
-                proc.WaitForExit(1000);
-                return [.. output.Split('\n', StringSplitOptions.RemoveEmptyEntries)];
-            }
-            catch { }
+                UseShellExecute        = false,
+                CreateNoWindow         = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+            };
+            using var proc = Process.Start(psi);
+            if (proc is null) return [];
+            var output = proc.StandardOutput.ReadToEnd();
+            proc.WaitForExit(2000);
+            return [.. output.Split('\n', StringSplitOptions.RemoveEmptyEntries)];
         }
-        return [];
+        catch { return []; }
     }
 
 
