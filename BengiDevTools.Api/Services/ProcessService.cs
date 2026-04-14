@@ -24,24 +24,25 @@ public partial class ProcessService : IProcessService
 
     // Detect externally started processes for a list of apps.
     // Called from the scan/status endpoint.
-    public void DetectExternal(IEnumerable<ScannedApp> apps)
+    public async Task DetectExternalAsync(IEnumerable<ScannedApp> apps)
     {
         _lastApps = apps.ToList();
         var managedIds = new HashSet<string>(_processes.Keys);
 
-        foreach (var app in apps)
+        await Parallel.ForEachAsync(_lastApps, async (app, _) =>
         {
-            if (managedIds.Contains(app.Id)) continue; // already ours
+            if (managedIds.Contains(app.Id)) return; // already ours
 
             bool found = false;
 
-            // Web app: try TCP connect to HTTPS port
+            // Web app: async TCP connect to HTTPS port with short timeout
             if (app.HttpsPort.HasValue)
             {
                 try
                 {
                     using var tcp = new TcpClient();
-                    tcp.Connect("localhost", app.HttpsPort.Value);
+                    using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+                    await tcp.ConnectAsync("localhost", app.HttpsPort.Value, cts.Token);
                     found = true;
                 }
                 catch { }
@@ -49,15 +50,16 @@ public partial class ProcessService : IProcessService
 
             // Console app (no port): scan /proc for matching dotnet cmdline
             if (!found)
-            {
                 found = FindDotnetProcForCsproj(app.CsprojPath) > 0;
-            }
 
-            if (found && !_externalPids.ContainsKey(app.Id))
-                _externalPids[app.Id] = 1;
-            else if (!found)
-                _externalPids.Remove(app.Id);
-        }
+            lock (_externalPids)
+            {
+                if (found && !_externalPids.ContainsKey(app.Id))
+                    _externalPids[app.Id] = 1;
+                else if (!found)
+                    _externalPids.Remove(app.Id);
+            }
+        });
     }
 
     private static int FindDotnetProcForCsproj(string csprojPath)

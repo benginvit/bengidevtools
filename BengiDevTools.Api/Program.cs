@@ -97,9 +97,9 @@ static object MapApps(AppScanService scan, IProcessService proc) =>
     });
 
 // Poll running status (ingen re-scan)
-app.MapGet("/api/apps/status", (AppScanService scan, IProcessService proc) =>
+app.MapGet("/api/apps/status", async (AppScanService scan, IProcessService proc) =>
 {
-    proc.DetectExternal(scan.Cached);
+    await proc.DetectExternalAsync(scan.Cached);
     return scan.Cached.Select(a => new
     {
         a.Id,
