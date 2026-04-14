@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.NetworkInformation;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
 
@@ -70,50 +71,42 @@ public partial class ProcessService : IProcessService
         }),
     };
 
-    // Run pgrep once to get all dotnet process cmdlines — avoids .NET /proc access and exceptions.
-    private static List<string> ReadDotnetCmdlines()
+    // Use IPGlobalProperties — cross-platform, no /proc access, no exceptions.
+    private static HashSet<int> ReadListeningPorts()
     {
         try
         {
-            var psi = new ProcessStartInfo("pgrep", "-af dotnet")
-            {
-                UseShellExecute        = false,
-                CreateNoWindow         = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-            };
-            using var proc = Process.Start(psi);
-            if (proc is null) return [];
-            var output = proc.StandardOutput.ReadToEnd();
-            proc.WaitForExit(1000);
-            return [.. output.Split('\n', StringSplitOptions.RemoveEmptyEntries)];
+            return IPGlobalProperties.GetIPGlobalProperties()
+                .GetActiveTcpListeners()
+                .Select(ep => ep.Port)
+                .ToHashSet();
         }
         catch { return []; }
     }
 
-    private static HashSet<int> ReadListeningPorts()
+    // Run pgrep with absolute path to avoid PATH issues under the debugger.
+    private static List<string> ReadDotnetCmdlines()
     {
-        var ports = new HashSet<int>();
-        foreach (var path in new[] { "/proc/net/tcp", "/proc/net/tcp6" })
+        foreach (var pgrepPath in new[] { "/usr/bin/pgrep", "/bin/pgrep", "pgrep" })
         {
             try
             {
-                foreach (var line in File.ReadLines(path).Skip(1)) // skip header
+                var psi = new ProcessStartInfo(pgrepPath, "-af dotnet")
                 {
-                    // Format: "sl  local_address rem_address st ..."
-                    // local_address = "XXXXXXXX:PPPP", st = "0A" for LISTEN
-                    var parts = line.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length < 4) continue;
-                    if (parts[3] != "0A") continue; // not LISTEN
-                    var colon = parts[1].IndexOf(':');
-                    if (colon < 0) continue;
-                    if (int.TryParse(parts[1][(colon + 1)..], System.Globalization.NumberStyles.HexNumber, null, out var port))
-                        ports.Add(port);
-                }
+                    UseShellExecute        = false,
+                    CreateNoWindow         = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError  = true,
+                };
+                using var proc = Process.Start(psi);
+                if (proc is null) continue;
+                var output = proc.StandardOutput.ReadToEnd();
+                proc.WaitForExit(1000);
+                return [.. output.Split('\n', StringSplitOptions.RemoveEmptyEntries)];
             }
             catch { }
         }
-        return ports;
+        return [];
     }
 
 
