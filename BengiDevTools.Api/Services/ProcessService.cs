@@ -30,10 +30,11 @@ public partial class ProcessService : IProcessService
                 var app = _lastApps.FirstOrDefault(a => a.Id == id);
                 if (app is not null)
                 {
-                    var projectName = Path.GetFileNameWithoutExtension(app.CsprojPath);
+                    // Search for "ProjectName.dll" — uniquely identifies the app process.
+                    // "dotnet run --project ProjectName.csproj" also contains the name but NOT ".dll".
+                    var dllName = Path.GetFileNameWithoutExtension(app.CsprojPath) + ".dll";
                     var appPid = _lastDotnetCmdlines
-                        .Where(c => c.Contains(projectName, StringComparison.OrdinalIgnoreCase)
-                                 && !c.Contains("MSBuild", StringComparison.OrdinalIgnoreCase))
+                        .Where(c => c.Contains(dllName, StringComparison.OrdinalIgnoreCase))
                         .Select(c => int.TryParse(c.Split(' ', 2)[0], out var parsed) ? parsed : 0)
                         .FirstOrDefault(parsed => parsed > 0);
                     if (appPid > 0) return appPid;
@@ -97,19 +98,16 @@ public partial class ProcessService : IProcessService
         {
             if (managedIds.Contains(app.Id)) continue;
 
-            // Match on project name (no extension) — covers both:
-            //   dotnet run --project Foo.csproj  (launched by our tool)
-            //   dotnet Foo.dll                   (launched by VS Code debugger)
-            var projectName = Path.GetFileNameWithoutExtension(app.CsprojPath);
+            // Match on "Foo.dll" — avoids matching the "dotnet run --project Foo.csproj" wrapper.
+            var dllName = Path.GetFileNameWithoutExtension(app.CsprojPath) + ".dll";
             var found = app.HttpsPort.HasValue
                 ? _lastListeningPorts.Contains(app.HttpsPort.Value)
-                : _lastDotnetCmdlines.Any(c => c.Contains(projectName, StringComparison.Ordinal));
+                : _lastDotnetCmdlines.Any(c => c.Contains(dllName, StringComparison.OrdinalIgnoreCase));
 
             if (found)
             {
-                // Try to extract actual PID from pgrep cmdlines
                 var pid = _lastDotnetCmdlines
-                    .Where(c => c.Contains(projectName, StringComparison.Ordinal))
+                    .Where(c => c.Contains(dllName, StringComparison.OrdinalIgnoreCase))
                     .Select(c => int.TryParse(c.Split(' ', 2)[0], out var p) ? p : 0)
                     .FirstOrDefault(p => p > 0);
                 _externalPids[app.Id] = pid > 0 ? pid : -1;
