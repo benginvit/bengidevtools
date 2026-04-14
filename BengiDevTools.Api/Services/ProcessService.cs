@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Net.Sockets;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
 
@@ -24,41 +23,52 @@ public partial class ProcessService : IProcessService
 
     // Detect externally started processes for a list of apps.
     // Called from the scan/status endpoint.
-    public async Task DetectExternalAsync(IEnumerable<ScannedApp> apps)
+    public Task DetectExternalAsync(IEnumerable<ScannedApp> apps)
     {
         _lastApps = apps.ToList();
         var managedIds = new HashSet<string>(_processes.Keys);
 
-        await Parallel.ForEachAsync(_lastApps, async (app, _) =>
+        // Read listening ports from /proc/net/tcp(6) once — no sockets, no exceptions.
+        var listeningPorts = ReadListeningPorts();
+
+        foreach (var app in _lastApps)
         {
-            if (managedIds.Contains(app.Id)) return; // already ours
+            if (managedIds.Contains(app.Id)) continue;
 
-            bool found = false;
+            var found = app.HttpsPort.HasValue && listeningPorts.Contains(app.HttpsPort.Value);
 
-            // Web app: async TCP connect to HTTPS port with short timeout.
-            // Use WhenAny+Delay instead of CancellationToken to avoid OperationCanceledException spam.
-            if (app.HttpsPort.HasValue)
+            if (found && !_externalPids.ContainsKey(app.Id))
+                _externalPids[app.Id] = 1;
+            else if (!found)
+                _externalPids.Remove(app.Id);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static HashSet<int> ReadListeningPorts()
+    {
+        var ports = new HashSet<int>();
+        foreach (var path in new[] { "/proc/net/tcp", "/proc/net/tcp6" })
+        {
+            try
             {
-                try
+                foreach (var line in File.ReadLines(path).Skip(1)) // skip header
                 {
-                    using var tcp     = new TcpClient();
-                    var connectTask   = tcp.ConnectAsync("localhost", app.HttpsPort.Value);
-                    var completed     = await Task.WhenAny(connectTask, Task.Delay(300));
-                    found = completed == connectTask && !connectTask.IsFaulted && !connectTask.IsCanceled;
+                    // Format: "sl  local_address rem_address st ..."
+                    // local_address = "XXXXXXXX:PPPP", st = "0A" for LISTEN
+                    var parts = line.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    if (parts.Length < 4) continue;
+                    if (parts[3] != "0A") continue; // not LISTEN
+                    var colon = parts[1].IndexOf(':');
+                    if (colon < 0) continue;
+                    if (int.TryParse(parts[1][(colon + 1)..], System.Globalization.NumberStyles.HexNumber, null, out var port))
+                        ports.Add(port);
                 }
-                catch { }
             }
-
-            // Console apps without a port are not detected externally
-
-            lock (_externalPids)
-            {
-                if (found && !_externalPids.ContainsKey(app.Id))
-                    _externalPids[app.Id] = 1;
-                else if (!found)
-                    _externalPids.Remove(app.Id);
-            }
-        });
+            catch { }
+        }
+        return ports;
     }
 
 
