@@ -14,7 +14,7 @@ export interface AppStatus {
   id: string
   isRunning: boolean
   isExternal: boolean
-  externalPid: number
+  pid: number
   hasException: boolean
   gitStatus: string
 }

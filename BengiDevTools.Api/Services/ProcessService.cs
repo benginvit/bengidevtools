@@ -18,7 +18,11 @@ public partial class ProcessService : IProcessService
         _processes.TryGetValue(id, out var p) && !p.HasExited;
 
     public bool IsExternal(string id) => _externalPids.ContainsKey(id);
-    public int  GetExternalPid(string id) => _externalPids.GetValueOrDefault(id, -1);
+    public int GetPid(string id)
+    {
+        if (_processes.TryGetValue(id, out var p) && !p.HasExited) return p.Id;
+        return _externalPids.GetValueOrDefault(id, -1);
+    }
 
     public bool HasException(string id) =>
         _outputs.TryGetValue(id, out var o) && o.HasException;

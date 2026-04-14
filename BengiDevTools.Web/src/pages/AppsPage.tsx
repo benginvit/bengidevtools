@@ -11,7 +11,7 @@ interface AppState extends ScannedApp {
   checked: boolean
   hasException: boolean
   isExternal: boolean
-  externalPid: number
+  pid: number
 }
 
 export default function AppsPage() {
@@ -31,7 +31,7 @@ export default function AppsPage() {
         checked:      prevMap.get(a.id)?.checked      ?? true,
         hasException: prevMap.get(a.id)?.hasException ?? false,
         isExternal:   false,
-        externalPid:  -1,
+        pid:  -1,
       }))
     })
   }, [])
@@ -60,7 +60,7 @@ export default function AppsPage() {
       const map = new Map(statuses.map(s => [s.id, s]))
       setApps(prev => prev.map(a => {
         const s = map.get(a.id)
-        return s ? { ...a, isRunning: s.isRunning, isExternal: s.isExternal, externalPid: s.externalPid, hasException: s.hasException, gitStatus: s.gitStatus } : a
+        return s ? { ...a, isRunning: s.isRunning, isExternal: s.isExternal, pid: s.pid, hasException: s.hasException, gitStatus: s.gitStatus } : a
       }))
     } catch { /* server offline */ }
   }, [])
@@ -245,13 +245,13 @@ function AppRow({ app, selected, onSelect, onCheck, onRefresh, onEditLocalUser }
       <span className="app-name">{app.projectName}</span>
       <span className="app-port">{app.httpsPort ? `:${app.httpsPort}` : ''}</span>
       <div className="app-actions" onClick={e => e.stopPropagation()}>
-        {app.isExternal && app.externalPid > 0 && (
+        {app.isRunning && app.pid > 0 && (
           <button
             className="pid-badge"
             title="Kopiera PID (för Attach to Process i VS Code)"
-            onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(String(app.externalPid)) }}
+            onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(String(app.pid)) }}
           >
-            {app.externalPid}
+            {app.pid}
           </button>
         )}
         <button

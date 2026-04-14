@@ -111,7 +111,7 @@ app.MapGet("/api/apps/status", async (AppScanService scan, IProcessService proc)
         a.Id,
         IsRunning    = proc.IsRunning(a.Id) || proc.IsExternal(a.Id),
         IsExternal   = proc.IsExternal(a.Id),
-        ExternalPid  = proc.GetExternalPid(a.Id),
+        Pid          = proc.GetPid(a.Id),
         HasException = proc.HasException(a.Id),
         GitStatus    = scan.GetGitStatus(a.RepoName),
     });
