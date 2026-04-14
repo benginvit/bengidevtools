@@ -11,6 +11,7 @@ interface AppState extends ScannedApp {
   checked: boolean
   hasException: boolean
   isExternal: boolean
+  externalPid: number
 }
 
 export default function AppsPage() {
@@ -30,6 +31,7 @@ export default function AppsPage() {
         checked:      prevMap.get(a.id)?.checked      ?? true,
         hasException: prevMap.get(a.id)?.hasException ?? false,
         isExternal:   false,
+        externalPid:  -1,
       }))
     })
   }, [])
@@ -58,7 +60,7 @@ export default function AppsPage() {
       const map = new Map(statuses.map(s => [s.id, s]))
       setApps(prev => prev.map(a => {
         const s = map.get(a.id)
-        return s ? { ...a, isRunning: s.isRunning, isExternal: s.isExternal, hasException: s.hasException, gitStatus: s.gitStatus } : a
+        return s ? { ...a, isRunning: s.isRunning, isExternal: s.isExternal, externalPid: s.externalPid, hasException: s.hasException, gitStatus: s.gitStatus } : a
       }))
     } catch { /* server offline */ }
   }, [])
@@ -242,6 +244,15 @@ function AppRow({ app, selected, onSelect, onCheck, onRefresh, onEditLocalUser }
       <div className={`app-dot ${dotClass}`} title={app.hasException ? 'Exception!' : app.isExternal ? 'Externt startad' : app.isRunning ? 'Kör' : 'Stoppad'} />
       <span className="app-name">{app.projectName}</span>
       <span className="app-port">{app.httpsPort ? `:${app.httpsPort}` : ''}</span>
+      {app.isExternal && app.externalPid > 0 && (
+        <button
+          className="pid-badge"
+          title="Kopiera PID (för Attach to Process i VS Code)"
+          onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(String(app.externalPid)) }}
+        >
+          {app.externalPid}
+        </button>
+      )}
       <div className="app-actions" onClick={e => e.stopPropagation()}>
         <button
           className="btn sm"

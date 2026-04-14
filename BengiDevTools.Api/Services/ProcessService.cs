@@ -18,6 +18,7 @@ public partial class ProcessService : IProcessService
         _processes.TryGetValue(id, out var p) && !p.HasExited;
 
     public bool IsExternal(string id) => _externalPids.ContainsKey(id);
+    public int  GetExternalPid(string id) => _externalPids.GetValueOrDefault(id, -1);
 
     public bool HasException(string id) =>
         _outputs.TryGetValue(id, out var o) && o.HasException;
@@ -45,9 +46,16 @@ public partial class ProcessService : IProcessService
                 ? _lastListeningPorts.Contains(app.HttpsPort.Value)
                 : _lastDotnetCmdlines.Any(c => c.Contains(projectName, StringComparison.Ordinal));
 
-            if (found && !_externalPids.ContainsKey(app.Id))
-                _externalPids[app.Id] = 1;
-            else if (!found)
+            if (found)
+            {
+                // Try to extract actual PID from pgrep cmdlines
+                var pid = _lastDotnetCmdlines
+                    .Where(c => c.Contains(projectName, StringComparison.Ordinal))
+                    .Select(c => int.TryParse(c.Split(' ', 2)[0], out var p) ? p : 0)
+                    .FirstOrDefault(p => p > 0);
+                _externalPids[app.Id] = pid > 0 ? pid : -1;
+            }
+            else
                 _externalPids.Remove(app.Id);
         }
 
