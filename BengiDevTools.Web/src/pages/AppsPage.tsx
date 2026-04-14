@@ -244,16 +244,16 @@ function AppRow({ app, selected, onSelect, onCheck, onRefresh, onEditLocalUser }
       <div className={`app-dot ${dotClass}`} title={app.hasException ? 'Exception!' : app.isExternal ? 'Externt startad' : app.isRunning ? 'Kör' : 'Stoppad'} />
       <span className="app-name">{app.projectName}</span>
       <span className="app-port">{app.httpsPort ? `:${app.httpsPort}` : ''}</span>
-      {app.isExternal && app.externalPid > 0 && (
-        <button
-          className="pid-badge"
-          title="Kopiera PID (för Attach to Process i VS Code)"
-          onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(String(app.externalPid)) }}
-        >
-          {app.externalPid}
-        </button>
-      )}
       <div className="app-actions" onClick={e => e.stopPropagation()}>
+        {app.isExternal && app.externalPid > 0 && (
+          <button
+            className="pid-badge"
+            title="Kopiera PID (för Attach to Process i VS Code)"
+            onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(String(app.externalPid)) }}
+          >
+            {app.externalPid}
+          </button>
+        )}
         <button
           className="btn sm"
           title={app.hasLocalUser ? 'Redigera appsettings.localuser.json' : 'Skapa appsettings.localuser.json'}
