@@ -32,6 +32,13 @@ public partial class ProcessService : IProcessService
 
     private static int GetChildPid(int parentPid)
     {
+        return OperatingSystem.IsWindows()
+            ? GetChildPidWindows(parentPid)
+            : GetChildPidLinux(parentPid);
+    }
+
+    private static int GetChildPidLinux(int parentPid)
+    {
         try
         {
             var psi = new ProcessStartInfo("/bin/bash", $"-c \"pgrep -P {parentPid} 2>/dev/null | head -1\"")
@@ -45,6 +52,28 @@ public partial class ProcessService : IProcessService
             if (proc is null) return 0;
             var output = proc.StandardOutput.ReadToEnd().Trim();
             proc.WaitForExit(500);
+            return int.TryParse(output, out var pid) ? pid : 0;
+        }
+        catch { return 0; }
+    }
+
+    private static int GetChildPidWindows(int parentPid)
+    {
+        try
+        {
+            // Use PowerShell to find child dotnet.exe processes
+            var psi = new ProcessStartInfo("powershell.exe",
+                $"-NoProfile -Command \"(Get-WmiObject Win32_Process -Filter 'ParentProcessId={parentPid} AND Name=\\'dotnet.exe\\'').ProcessId | Select-Object -First 1\"")
+            {
+                UseShellExecute        = false,
+                CreateNoWindow         = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError  = true,
+            };
+            using var proc = Process.Start(psi);
+            if (proc is null) return 0;
+            var output = proc.StandardOutput.ReadToEnd().Trim();
+            proc.WaitForExit(2000);
             return int.TryParse(output, out var pid) ? pid : 0;
         }
         catch { return 0; }
