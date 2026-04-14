@@ -31,7 +31,7 @@ public partial class ProcessService : IProcessService
 
         // Read listening ports and dotnet cmdlines once per poll — no .NET /proc access.
         _lastListeningPorts = ReadListeningPorts();
-        _lastDotnetCmdlines = ReadDotnetCmdlines();
+        _lastDotnetCmdlines = ReadDotnetCmdlines(out _lastCmdlineError);
 
         foreach (var app in _lastApps)
         {
@@ -55,17 +55,23 @@ public partial class ProcessService : IProcessService
     // Exposed for the debug endpoint
     private HashSet<int>  _lastListeningPorts = [];
     private List<string>  _lastDotnetCmdlines = [];
+    private string        _lastCmdlineError   = "";
 
     public object GetDetectionDiagnostics() => new
     {
-        listeningPorts = _lastListeningPorts.OrderBy(p => p).ToList(),
-        dotnetCmdlines = _lastDotnetCmdlines,
+        os              = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+        isLinux         = OperatingSystem.IsLinux(),
+        isWindows       = OperatingSystem.IsWindows(),
+        bashExists      = File.Exists("/bin/bash"),
+        cmdlineError    = _lastCmdlineError,
+        listeningPorts  = _lastListeningPorts.OrderBy(p => p).ToList(),
+        dotnetCmdlines  = _lastDotnetCmdlines,
         apps = _lastApps.Select(a => new
         {
             a.Id,
             a.HttpsPort,
-            csprojFile  = Path.GetFileName(a.CsprojPath),
-            portFound   = a.HttpsPort.HasValue && _lastListeningPorts.Contains(a.HttpsPort.Value),
+            csprojFile   = Path.GetFileName(a.CsprojPath),
+            portFound    = a.HttpsPort.HasValue && _lastListeningPorts.Contains(a.HttpsPort.Value),
             cmdlineFound = !a.HttpsPort.HasValue && _lastDotnetCmdlines.Any(
                 c => c.Contains(Path.GetFileName(a.CsprojPath), StringComparison.Ordinal)),
         }),
@@ -84,13 +90,17 @@ public partial class ProcessService : IProcessService
         catch { return []; }
     }
 
-    // Run pgrep via bash so it resolves through bash's PATH regardless of the
-    // environment the .NET process was launched in (e.g. VS Code debugger).
-    private static List<string> ReadDotnetCmdlines()
+    private static List<string> ReadDotnetCmdlines(out string error)
     {
+        error = "";
         try
         {
-            var psi = new ProcessStartInfo("/bin/bash", "-c \"pgrep -af dotnet 2>/dev/null\"")
+            var shell = OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/bash";
+            var args  = OperatingSystem.IsWindows()
+                ? "/c \"wmic process where name='dotnet.exe' get commandline /format:list 2>nul\""
+                : "-c \"pgrep -af dotnet 2>/dev/null\"";
+
+            var psi = new ProcessStartInfo(shell, args)
             {
                 UseShellExecute        = false,
                 CreateNoWindow         = true,
@@ -98,12 +108,16 @@ public partial class ProcessService : IProcessService
                 RedirectStandardError  = true,
             };
             using var proc = Process.Start(psi);
-            if (proc is null) return [];
+            if (proc is null) { error = "Process.Start returned null"; return []; }
             var output = proc.StandardOutput.ReadToEnd();
             proc.WaitForExit(2000);
             return [.. output.Split('\n', StringSplitOptions.RemoveEmptyEntries)];
         }
-        catch { return []; }
+        catch (Exception ex)
+        {
+            error = $"{ex.GetType().Name}: {ex.Message}";
+            return [];
+        }
     }
 
 
