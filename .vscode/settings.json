@@ -1,0 +1,8 @@
+{
+  "csharp.debug.exceptionOptions": {
+    "System.IO.DirectoryNotFoundException": "never",
+    "System.IO.FileNotFoundException": "never",
+    "System.Net.Sockets.SocketException": "never",
+    "System.OperationCanceledException": "never"
+  }
+}

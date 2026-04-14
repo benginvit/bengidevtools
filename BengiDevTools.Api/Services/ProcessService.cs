@@ -35,7 +35,9 @@ public partial class ProcessService : IProcessService
         {
             if (managedIds.Contains(app.Id)) continue;
 
-            var found = app.HttpsPort.HasValue && listeningPorts.Contains(app.HttpsPort.Value);
+            var found = app.HttpsPort.HasValue
+                ? listeningPorts.Contains(app.HttpsPort.Value)
+                : IsDotnetProcessRunning(app.CsprojPath);
 
             if (found && !_externalPids.ContainsKey(app.Id))
                 _externalPids[app.Id] = 1;
@@ -44,6 +46,28 @@ public partial class ProcessService : IProcessService
         }
 
         return Task.CompletedTask;
+    }
+
+    private static bool IsDotnetProcessRunning(string csprojPath)
+    {
+        try
+        {
+            foreach (var dir in Directory.GetDirectories("/proc"))
+            {
+                if (!int.TryParse(Path.GetFileName(dir), out _)) continue; // only PIDs
+                if (!Directory.Exists(dir)) continue;                       // process died before we got here
+                try
+                {
+                    var cmdline = File.ReadAllText(Path.Combine(dir, "cmdline")).Replace('\0', ' ');
+                    if (cmdline.Contains("dotnet", StringComparison.Ordinal) &&
+                        cmdline.Contains(csprojPath, StringComparison.Ordinal))
+                        return true;
+                }
+                catch { }
+            }
+        }
+        catch { }
+        return false;
     }
 
     private static HashSet<int> ReadListeningPorts()
