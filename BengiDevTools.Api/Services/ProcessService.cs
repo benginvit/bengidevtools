@@ -37,11 +37,13 @@ public partial class ProcessService : IProcessService
         {
             if (managedIds.Contains(app.Id)) continue;
 
-            // Match on csproj filename — handles both absolute and relative paths in cmdline.
-            var csprojFile = Path.GetFileName(app.CsprojPath);
+            // Match on project name (no extension) — covers both:
+            //   dotnet run --project Foo.csproj  (launched by our tool)
+            //   dotnet Foo.dll                   (launched by VS Code debugger)
+            var projectName = Path.GetFileNameWithoutExtension(app.CsprojPath);
             var found = app.HttpsPort.HasValue
                 ? _lastListeningPorts.Contains(app.HttpsPort.Value)
-                : _lastDotnetCmdlines.Any(c => c.Contains(csprojFile, StringComparison.Ordinal));
+                : _lastDotnetCmdlines.Any(c => c.Contains(projectName, StringComparison.Ordinal));
 
             if (found && !_externalPids.ContainsKey(app.Id))
                 _externalPids[app.Id] = 1;
@@ -70,10 +72,10 @@ public partial class ProcessService : IProcessService
         {
             a.Id,
             a.HttpsPort,
-            csprojFile   = Path.GetFileName(a.CsprojPath),
+            projectName  = Path.GetFileNameWithoutExtension(a.CsprojPath),
             portFound    = a.HttpsPort.HasValue && _lastListeningPorts.Contains(a.HttpsPort.Value),
             cmdlineFound = !a.HttpsPort.HasValue && _lastDotnetCmdlines.Any(
-                c => c.Contains(Path.GetFileName(a.CsprojPath), StringComparison.Ordinal)),
+                c => c.Contains(Path.GetFileNameWithoutExtension(a.CsprojPath), StringComparison.Ordinal)),
         }),
     };
 
