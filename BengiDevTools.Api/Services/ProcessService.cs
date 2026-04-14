@@ -65,22 +65,17 @@ public partial class ProcessService : IProcessService
 
     private static int FindDotnetProcForCsproj(string csprojPath)
     {
-        try
+        foreach (var proc in Process.GetProcessesByName("dotnet"))
         {
-            foreach (var dir in Directory.GetDirectories("/proc"))
+            try
             {
-                // Process can die between listing and reading — wrap each read individually
-                // to avoid DirectoryNotFoundException spam when using a debugger.
-                try
-                {
-                    var cmdline = File.ReadAllText(Path.Combine(dir, "cmdline")).Replace('\0', ' ');
-                    if (cmdline.Contains("dotnet") && cmdline.Contains(csprojPath))
-                        return int.TryParse(Path.GetFileName(dir), out var pid) ? pid : 0;
-                }
-                catch { }
+                var cmdline = File.ReadAllText($"/proc/{proc.Id}/cmdline").Replace('\0', ' ');
+                if (cmdline.Contains(csprojPath))
+                    return proc.Id;
             }
+            catch { }
+            finally { proc.Dispose(); }
         }
-        catch { }
         return 0;
     }
 
