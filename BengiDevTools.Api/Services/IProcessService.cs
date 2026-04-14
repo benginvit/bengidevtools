@@ -8,6 +8,7 @@ public interface IProcessService
     bool IsExternal(string id);
     bool HasException(string id);
     Task DetectExternalAsync(IEnumerable<ScannedApp> apps);
+    object GetDetectionDiagnostics();
     IReadOnlyList<string> GetOutputBuffer(string id);
     void Subscribe(string id, Channel<string> channel);
     void Unsubscribe(string id, Channel<string> channel);

@@ -29,8 +29,8 @@ public partial class ProcessService : IProcessService
         var managedIds = new HashSet<string>(_processes.Keys);
 
         // Read listening ports and dotnet cmdlines once per poll — no .NET /proc access.
-        var listeningPorts  = ReadListeningPorts();
-        var dotnetCmdlines  = ReadDotnetCmdlines();
+        _lastListeningPorts = ReadListeningPorts();
+        _lastDotnetCmdlines = ReadDotnetCmdlines();
 
         foreach (var app in _lastApps)
         {
@@ -39,8 +39,8 @@ public partial class ProcessService : IProcessService
             // Match on csproj filename — handles both absolute and relative paths in cmdline.
             var csprojFile = Path.GetFileName(app.CsprojPath);
             var found = app.HttpsPort.HasValue
-                ? listeningPorts.Contains(app.HttpsPort.Value)
-                : dotnetCmdlines.Any(c => c.Contains(csprojFile, StringComparison.Ordinal));
+                ? _lastListeningPorts.Contains(app.HttpsPort.Value)
+                : _lastDotnetCmdlines.Any(c => c.Contains(csprojFile, StringComparison.Ordinal));
 
             if (found && !_externalPids.ContainsKey(app.Id))
                 _externalPids[app.Id] = 1;
@@ -50,6 +50,25 @@ public partial class ProcessService : IProcessService
 
         return Task.CompletedTask;
     }
+
+    // Exposed for the debug endpoint
+    private HashSet<int>  _lastListeningPorts = [];
+    private List<string>  _lastDotnetCmdlines = [];
+
+    public object GetDetectionDiagnostics() => new
+    {
+        listeningPorts = _lastListeningPorts.OrderBy(p => p).ToList(),
+        dotnetCmdlines = _lastDotnetCmdlines,
+        apps = _lastApps.Select(a => new
+        {
+            a.Id,
+            a.HttpsPort,
+            csprojFile  = Path.GetFileName(a.CsprojPath),
+            portFound   = a.HttpsPort.HasValue && _lastListeningPorts.Contains(a.HttpsPort.Value),
+            cmdlineFound = !a.HttpsPort.HasValue && _lastDotnetCmdlines.Any(
+                c => c.Contains(Path.GetFileName(a.CsprojPath), StringComparison.Ordinal)),
+        }),
+    };
 
     // Run pgrep once to get all dotnet process cmdlines — avoids .NET /proc access and exceptions.
     private static List<string> ReadDotnetCmdlines()

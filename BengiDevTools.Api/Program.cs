@@ -96,6 +96,12 @@ static object MapApps(AppScanService scan, IProcessService proc) =>
         LocalhostUrl = a.HttpsPort.HasValue ? $"https://localhost:{a.HttpsPort}" : null,
     });
 
+app.MapGet("/api/apps/detect-diag", async (AppScanService scan, IProcessService proc) =>
+{
+    await proc.DetectExternalAsync(scan.Cached);
+    return proc.GetDetectionDiagnostics();
+});
+
 // Poll running status (ingen re-scan)
 app.MapGet("/api/apps/status", async (AppScanService scan, IProcessService proc) =>
 {
