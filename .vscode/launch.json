@@ -2,6 +2,19 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Attach (klistra PID)",
+      "type": "dotnet",
+      "request": "attach",
+      "processId": "${command:pickProcess}",
+      "justMyCode": false,
+      "enableStepFiltering": false,
+      "symbolOptions": {
+        "searchPaths": [],
+        "searchMicrosoftSymbolServer": false,
+        "searchNuGetOrgSymbolServer": false
+      }
+    },
+    {
       "name": "API (dotnet run)",
       "type": "dotnet",
       "request": "launch",
