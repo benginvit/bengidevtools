@@ -218,7 +218,8 @@ function AppRow({ app, selected, onSelect, onCheck, onRefresh, onEditLocalUser }
   onRefresh: () => void
   onEditLocalUser: () => void
 }) {
-  const [busy, setBusy] = useState(false)
+  const [busy, setBusy]       = useState(false)
+  const [copied, setCopied]   = useState(false)
 
   const act = async (fn: () => Promise<void>) => {
     setBusy(true)
@@ -227,6 +228,14 @@ function AppRow({ app, selected, onSelect, onCheck, onRefresh, onEditLocalUser }
   }
 
   const dotClass = app.hasException ? 'exception' : app.isExternal ? 'external' : app.isRunning ? 'running' : 'stopped'
+
+  const copyPid = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (app.pid <= 0) return
+    navigator.clipboard.writeText(String(app.pid))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
 
   return (
     <div
@@ -241,19 +250,15 @@ function AppRow({ app, selected, onSelect, onCheck, onRefresh, onEditLocalUser }
         onClick={e => e.stopPropagation()}
         style={{ accentColor: 'var(--blue)', width: 13, height: 13, cursor: 'pointer', flexShrink: 0 }}
       />
-      <div className={`app-dot ${dotClass}`} title={app.hasException ? 'Exception!' : app.isExternal ? 'Externt startad' : app.isRunning ? 'Kör' : 'Stoppad'} />
+      <div
+        className={`app-dot ${dotClass}`}
+        title={copied ? `PID ${app.pid} kopierat!` : app.pid > 0 ? `PID ${app.pid} — klicka för att kopiera` : app.hasException ? 'Exception!' : app.isExternal ? 'Externt startad' : app.isRunning ? 'Kör' : 'Stoppad'}
+        onClick={app.isRunning ? copyPid : undefined}
+        style={app.isRunning && app.pid > 0 ? { cursor: 'pointer' } : undefined}
+      />
       <span className="app-name">{app.projectName}</span>
       <span className="app-port">{app.httpsPort ? `:${app.httpsPort}` : ''}</span>
       <div className="app-actions" onClick={e => e.stopPropagation()}>
-        {app.isRunning && app.pid > 0 && (
-          <button
-            className="pid-badge"
-            title="Kopiera PID (för Attach to Process i VS Code)"
-            onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(String(app.pid)) }}
-          >
-            {app.pid}
-          </button>
-        )}
         <button
           className="btn sm"
           title={app.hasLocalUser ? 'Redigera appsettings.localuser.json' : 'Skapa appsettings.localuser.json'}
