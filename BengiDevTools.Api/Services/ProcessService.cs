@@ -30,14 +30,22 @@ public partial class ProcessService : IProcessService
                 var app = _lastApps.FirstOrDefault(a => a.Id == id);
                 if (app is not null)
                 {
-                    // Search for "ProjectName.dll" — uniquely identifies the app process.
-                    // "dotnet run --project ProjectName.csproj" also contains the name but NOT ".dll".
-                    var dllName = Path.GetFileNameWithoutExtension(app.CsprojPath) + ".dll";
-                    var appPid = _lastDotnetCmdlines
-                        .Where(c => c.Contains(dllName, StringComparison.OrdinalIgnoreCase))
+                    var projectName = Path.GetFileNameWithoutExtension(app.CsprojPath);
+
+                    // 1. App hosted by dotnet.exe — cmdline contains "ProjectName.dll"
+                    var dllPid = _lastDotnetCmdlines
+                        .Where(c => c.Contains(projectName + ".dll", StringComparison.OrdinalIgnoreCase))
                         .Select(c => int.TryParse(c.Split(' ', 2)[0], out var parsed) ? parsed : 0)
                         .FirstOrDefault(parsed => parsed > 0);
-                    if (appPid > 0) return appPid;
+                    if (dllPid > 0) return dllPid;
+
+                    // 2. App running as Windows apphost (ProjectName.exe), not dotnet.exe
+                    try
+                    {
+                        var procs = Process.GetProcessesByName(projectName);
+                        if (procs.Length > 0) return procs[0].Id;
+                    }
+                    catch { }
                 }
             }
             // On Linux: dotnet run spawns the actual app as a child process.
@@ -98,11 +106,17 @@ public partial class ProcessService : IProcessService
         {
             if (managedIds.Contains(app.Id)) continue;
 
+            var projectName = Path.GetFileNameWithoutExtension(app.CsprojPath);
+            var dllName     = projectName + ".dll";
+
             // Match on "Foo.dll" — avoids matching the "dotnet run --project Foo.csproj" wrapper.
-            var dllName = Path.GetFileNameWithoutExtension(app.CsprojPath) + ".dll";
             var found = app.HttpsPort.HasValue
                 ? _lastListeningPorts.Contains(app.HttpsPort.Value)
                 : _lastDotnetCmdlines.Any(c => c.Contains(dllName, StringComparison.OrdinalIgnoreCase));
+
+            // Fallback: app might run as ProjectName.exe (Windows apphost)
+            if (!found && OperatingSystem.IsWindows())
+                try { found = Process.GetProcessesByName(projectName).Length > 0; } catch { }
 
             if (found)
             {
@@ -110,6 +124,15 @@ public partial class ProcessService : IProcessService
                     .Where(c => c.Contains(dllName, StringComparison.OrdinalIgnoreCase))
                     .Select(c => int.TryParse(c.Split(' ', 2)[0], out var p) ? p : 0)
                     .FirstOrDefault(p => p > 0);
+
+                if (pid <= 0 && OperatingSystem.IsWindows())
+                    try
+                    {
+                        var procs = Process.GetProcessesByName(projectName);
+                        if (procs.Length > 0) pid = procs[0].Id;
+                    }
+                    catch { }
+
                 _externalPids[app.Id] = pid > 0 ? pid : -1;
             }
             else
