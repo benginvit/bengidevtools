@@ -35,15 +35,16 @@ public partial class ProcessService : IProcessService
 
             bool found = false;
 
-            // Web app: async TCP connect to HTTPS port with short timeout
+            // Web app: async TCP connect to HTTPS port with short timeout.
+            // Use WhenAny+Delay instead of CancellationToken to avoid OperationCanceledException spam.
             if (app.HttpsPort.HasValue)
             {
                 try
                 {
-                    using var tcp = new TcpClient();
-                    using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
-                    await tcp.ConnectAsync("localhost", app.HttpsPort.Value, cts.Token);
-                    found = true;
+                    using var tcp     = new TcpClient();
+                    var connectTask   = tcp.ConnectAsync("localhost", app.HttpsPort.Value);
+                    var completed     = await Task.WhenAny(connectTask, Task.Delay(300));
+                    found = completed == connectTask && !connectTask.IsFaulted && !connectTask.IsCanceled;
                 }
                 catch { }
             }
@@ -68,11 +69,15 @@ public partial class ProcessService : IProcessService
         {
             foreach (var dir in Directory.GetDirectories("/proc"))
             {
-                var cmdlineFile = Path.Combine(dir, "cmdline");
-                if (!File.Exists(cmdlineFile)) continue;
-                var cmdline = File.ReadAllText(cmdlineFile).Replace('\0', ' ');
-                if (cmdline.Contains("dotnet") && cmdline.Contains(csprojPath))
-                    return int.TryParse(Path.GetFileName(dir), out var pid) ? pid : 0;
+                // Process can die between listing and reading — wrap each read individually
+                // to avoid DirectoryNotFoundException spam when using a debugger.
+                try
+                {
+                    var cmdline = File.ReadAllText(Path.Combine(dir, "cmdline")).Replace('\0', ' ');
+                    if (cmdline.Contains("dotnet") && cmdline.Contains(csprojPath))
+                        return int.TryParse(Path.GetFileName(dir), out var pid) ? pid : 0;
+                }
+                catch { }
             }
         }
         catch { }
