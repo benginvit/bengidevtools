@@ -49,9 +49,7 @@ public partial class ProcessService : IProcessService
                 catch { }
             }
 
-            // Console app (no port): scan /proc for matching dotnet cmdline
-            if (!found)
-                found = FindDotnetProcForCsproj(app.CsprojPath) > 0;
+            // Console apps without a port are not detected externally
 
             lock (_externalPids)
             {
@@ -63,21 +61,6 @@ public partial class ProcessService : IProcessService
         });
     }
 
-    private static int FindDotnetProcForCsproj(string csprojPath)
-    {
-        foreach (var proc in Process.GetProcessesByName("dotnet"))
-        {
-            try
-            {
-                var cmdline = File.ReadAllText($"/proc/{proc.Id}/cmdline").Replace('\0', ' ');
-                if (cmdline.Contains(csprojPath))
-                    return proc.Id;
-            }
-            catch { }
-            finally { proc.Dispose(); }
-        }
-        return 0;
-    }
 
     public IReadOnlyList<string> GetOutputBuffer(string id) =>
         _outputs.TryGetValue(id, out var o) ? o.GetLines() : [];
@@ -146,12 +129,7 @@ public partial class ProcessService : IProcessService
             // We re-scan since we only stored a placeholder pid=1
             foreach (var app in _lastApps.Where(a => a.Id == id))
             {
-                var pid = FindDotnetProcForCsproj(app.CsprojPath);
-                if (pid > 0)
-                {
-                    try { Process.GetProcessById(pid).Kill(entireProcessTree: true); } catch { }
-                }
-                // Also kill by port if web app
+                // Kill by port if web app
                 if (app.HttpsPort.HasValue)
                 {
                     try
