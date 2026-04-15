@@ -263,6 +263,20 @@ export function streamAppOutput(
   return ctrl
 }
 
+export function startCheckoutAll(
+  onUpdate: (repoName: string, branch: string, message: string) => void,
+  onDone: () => void,
+): EventSource {
+  const source = new EventSource(`${BASE}/apps/git-checkout-all`)
+  source.onmessage = (e) => {
+    const { repoName, branch, message } = JSON.parse(e.data)
+    onUpdate(repoName, branch, message)
+  }
+  source.addEventListener('done', () => { source.close(); onDone() })
+  source.onerror = () => { source.close(); onDone() }
+  return source
+}
+
 export function startGitRefresh(
   onUpdate: (repoName: string, status: string) => void,
   onDone: () => void,

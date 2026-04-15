@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   scanApps, loadApps, getScanInfo, getAppStatuses,
   startApp, stopApp, restartApp,
-  startSelected, stopAll, startGitRefresh,
+  startSelected, stopAll, startGitRefresh, startCheckoutAll,
   streamAppOutput, getLocalUser, saveLocalUser, exportLocalUserUrl,
 } from '../api'
 import type { ScannedApp } from '../types'
@@ -17,7 +17,8 @@ interface AppState extends ScannedApp {
 export default function AppsPage() {
   const [apps, setApps]               = useState<AppState[]>([])
   const [scanning, setScanning]       = useState(false)
-  const [gitLoading, setGitLoading]   = useState(false)
+  const [gitLoading, setGitLoading]         = useState(false)
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [selectedId, setSelectedId]   = useState<string | null>(null)
   const [localUserEditId, setLocalUserEditId] = useState<string | null>(null)
   const [lastScanned, setLastScanned] = useState<string | null>(null)
@@ -81,6 +82,18 @@ export default function AppsPage() {
     )
   }
 
+  const handleCheckoutAll = () => {
+    setCheckoutLoading(true)
+    startCheckoutAll(
+      (repoName, branch, _message) => setApps(prev =>
+        prev.map(a => a.repoName === repoName ? { ...a, gitStatus: branch || 'Fel' } : a)),
+      () => {
+        setCheckoutLoading(false)
+        handleGitRefresh()
+      },
+    )
+  }
+
   const handleStartSelected = async () => {
     await startSelected(apps.filter(a => a.checked && !a.isRunning).map(a => a.id))
     await pollStatus()
@@ -111,6 +124,9 @@ export default function AppsPage() {
           <button className="btn danger" onClick={handleStopAll}>■ Stoppa alla</button>
           <button className="btn" onClick={handleGitRefresh} disabled={gitLoading || apps.length === 0} title="Uppdatera git-status">
             {gitLoading ? '⟳' : '⟳ Git'}
+          </button>
+          <button className="btn" onClick={handleCheckoutAll} disabled={checkoutLoading || gitLoading || apps.length === 0} title="Checkout develop (eller master/main) och pull på alla repon">
+            {checkoutLoading ? '⟳' : '⎇ Develop'}
           </button>
           <a
             className="btn"

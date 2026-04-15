@@ -283,6 +283,44 @@ app.MapGet("/api/apps/git-refresh", async (HttpContext ctx, AppScanService scan,
     await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
 });
 
+// ─── Apps: checkout default branch + pull ─────────────────────────────────────
+
+app.MapGet("/api/apps/git-checkout-all", async (HttpContext ctx, AppScanService scan, IGitService git, ISettingsService s) =>
+{
+    ctx.Response.Headers.ContentType  = "text/event-stream";
+    ctx.Response.Headers.CacheControl = "no-cache";
+    ctx.Response.Headers.Connection   = "keep-alive";
+    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+
+    var root        = s.Settings.RepoRootPath;
+    var channel     = Channel.CreateUnbounded<string>();
+    var sem         = new SemaphoreSlim(2);
+    var uniqueRepos = scan.Cached.Select(a => a.RepoName).Distinct().ToList();
+
+    var tasks = uniqueRepos.Select(async repoName =>
+    {
+        await sem.WaitAsync(ctx.RequestAborted);
+        try
+        {
+            var (branch, message) = await git.CheckoutDefaultAndPullAsync(
+                Path.Combine(root, repoName), ctx.RequestAborted);
+            channel.Writer.TryWrite(JsonSerializer.Serialize(new { repoName, branch, message }, jsonOpts));
+        }
+        finally { sem.Release(); }
+    });
+
+    _ = Task.WhenAll(tasks).ContinueWith(_ => channel.Writer.Complete());
+
+    await foreach (var msg in channel.Reader.ReadAllAsync(ctx.RequestAborted))
+    {
+        await ctx.Response.WriteAsync($"data: {msg}\n\n", ctx.RequestAborted);
+        await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+    }
+
+    await ctx.Response.WriteAsync("event: done\ndata: {}\n\n", ctx.RequestAborted);
+    await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
+});
+
 // ─── Build ────────────────────────────────────────────────────────────────────
 
 app.MapPost("/api/build/start", async (HttpContext ctx, BuildStartRequest req, IBuildService build, ISettingsService s) =>

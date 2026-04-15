@@ -22,7 +22,34 @@ public partial class GitService : IGitService
         catch                              { return "Okänd"; }
     }
 
+    public async Task<(string Branch, string Message)> CheckoutDefaultAndPullAsync(string repoPath, CancellationToken ct = default)
+    {
+        if (!Directory.Exists(repoPath)) return ("", "Saknas");
+        try
+        {
+            await RunGitAsync(repoPath, "fetch --quiet", ct);
+
+            foreach (var branch in new[] { "develop", "master", "main" })
+            {
+                var (_, _, exitCode) = await RunGitRawAsync(repoPath, $"checkout {branch}", ct);
+                if (exitCode != 0) continue;
+
+                await RunGitAsync(repoPath, "pull --quiet", ct);
+                return (branch, "OK");
+            }
+            return ("", "Ingen branch (develop/master/main)");
+        }
+        catch (OperationCanceledException) { return ("", "–"); }
+        catch (Exception ex)               { return ("", $"Fel: {ex.Message}"); }
+    }
+
     private static async Task<string> RunGitAsync(string repoPath, string args, CancellationToken ct)
+    {
+        var (output, _, _) = await RunGitRawAsync(repoPath, args, ct);
+        return output;
+    }
+
+    private static async Task<(string Output, string Error, int ExitCode)> RunGitRawAsync(string repoPath, string args, CancellationToken ct)
     {
         var psi = new ProcessStartInfo("git")
         {
@@ -34,8 +61,10 @@ public partial class GitService : IGitService
             RedirectStandardError  = true,
         };
         using var proc = Process.Start(psi) ?? throw new InvalidOperationException();
-        var output = await proc.StandardOutput.ReadToEndAsync(ct);
+        var outputTask = proc.StandardOutput.ReadToEndAsync(ct);
+        var errorTask  = proc.StandardError.ReadToEndAsync(ct);
+        await Task.WhenAll(outputTask, errorTask);
         await proc.WaitForExitAsync(ct);
-        return output;
+        return (outputTask.Result, errorTask.Result, proc.ExitCode);
     }
 }
