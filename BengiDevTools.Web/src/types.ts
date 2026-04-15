@@ -7,6 +7,7 @@ export interface ScannedApp {
   isRunning: boolean
   hasLocalUser: boolean
   gitStatus: string
+  gitBranch: string
   localhostUrl: string | null
 }
 
@@ -17,6 +18,7 @@ export interface AppStatus {
   pid: number
   hasException: boolean
   gitStatus: string
+  gitBranch: string
 }
 
 export interface RepoInfo {

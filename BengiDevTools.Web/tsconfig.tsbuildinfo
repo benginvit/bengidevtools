@@ -1,1 +1,1 @@
-{"root":["./src/App.tsx","./src/api.ts","./src/main.tsx","./src/types.ts","./src/pages/AppsPage.tsx","./src/pages/BuildPage.tsx","./src/pages/SettingsPage.tsx"],"version":"5.9.3"}
+{"root":["./src/App.tsx","./src/api.ts","./src/main.tsx","./src/types.ts","./src/pages/AppsPage.tsx","./src/pages/BuildPage.tsx","./src/pages/DebugPage.tsx","./src/pages/SettingsPage.tsx"],"version":"5.9.3"}

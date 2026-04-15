@@ -8,18 +8,27 @@ public partial class GitService : IGitService
     [GeneratedRegex(@"\[behind \d+\]")]
     private static partial Regex BehindRegex();
 
-    public async Task<string> GetStatusAsync(string repoPath, CancellationToken ct = default)
+    public async Task<(string Status, string Branch)> GetStatusAsync(string repoPath, CancellationToken ct = default)
     {
-        if (!Directory.Exists(repoPath)) return "Saknas";
+        if (!Directory.Exists(repoPath)) return ("Saknas", "");
         try
         {
             await RunGitAsync(repoPath, "fetch --quiet", ct);
             var output = await RunGitAsync(repoPath, "status -b --porcelain=v1", ct);
-            var first = output.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
-            return BehindRegex().IsMatch(first) ? "Bakom" : "Uppdaterad";
+            var first  = output.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+            return (BehindRegex().IsMatch(first) ? "Bakom" : "Uppdaterad", ParseBranch(first));
         }
-        catch (OperationCanceledException) { return "–"; }
-        catch                              { return "Okänd"; }
+        catch (OperationCanceledException) { return ("–", ""); }
+        catch                              { return ("Okänd", ""); }
+    }
+
+    // Parses "## branchname...origin/branchname [behind N]" → "branchname"
+    internal static string ParseBranch(string firstLine)
+    {
+        if (!firstLine.StartsWith("## ")) return "";
+        var rest   = firstLine[3..];
+        var dotDot = rest.IndexOf("...", StringComparison.Ordinal);
+        return (dotDot > 0 ? rest[..dotDot] : rest.Split(' ')[0]).Trim();
     }
 
     public async Task<(string Branch, string Message)> CheckoutDefaultAndPullAsync(string repoPath, CancellationToken ct = default)

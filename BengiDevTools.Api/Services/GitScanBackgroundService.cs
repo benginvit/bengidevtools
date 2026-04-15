@@ -31,10 +31,10 @@ public class GitScanBackgroundService(AppScanService scan, IGitService git) : Ba
                     if (ct.IsCancellationRequested) break;
                     var repoPath = GetRepoPath(repoName);
                     if (repoPath is null) continue;
-                    var status = doFetch
+                    var (status, branch) = doFetch
                         ? await git.GetStatusAsync(repoPath, ct)
                         : await GetLocalStatusAsync(repoPath, ct);
-                    scan.SetGitStatus(repoName, status);
+                    scan.SetGitStatus(repoName, status, branch);
                 }
 
                 if (doFetch) lastFetch = DateTime.UtcNow;
@@ -58,7 +58,7 @@ public class GitScanBackgroundService(AppScanService scan, IGitService git) : Ba
         return null;
     }
 
-    private static async Task<string> GetLocalStatusAsync(string repoPath, CancellationToken ct)
+    private static async Task<(string Status, string Branch)> GetLocalStatusAsync(string repoPath, CancellationToken ct)
     {
         try
         {
@@ -73,10 +73,11 @@ public class GitScanBackgroundService(AppScanService scan, IGitService git) : Ba
             }) ?? throw new InvalidOperationException();
             var output = await proc.StandardOutput.ReadToEndAsync(ct);
             await proc.WaitForExitAsync(ct);
-            var first = output.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
-            return System.Text.RegularExpressions.Regex.IsMatch(first, @"\[behind \d+\]") ? "Bakom" : "Uppdaterad";
+            var first  = output.Split('\n', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+            var status = System.Text.RegularExpressions.Regex.IsMatch(first, @"\[behind \d+\]") ? "Bakom" : "Uppdaterad";
+            return (status, GitService.ParseBranch(first));
         }
-        catch (OperationCanceledException) { return "–"; }
-        catch                              { return "Okänd"; }
+        catch (OperationCanceledException) { return ("–", ""); }
+        catch                              { return ("Okänd", ""); }
     }
 }

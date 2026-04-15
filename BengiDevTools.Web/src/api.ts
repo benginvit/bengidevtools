@@ -278,13 +278,13 @@ export function startCheckoutAll(
 }
 
 export function startGitRefresh(
-  onUpdate: (repoName: string, status: string) => void,
+  onUpdate: (repoName: string, status: string, branch: string) => void,
   onDone: () => void,
 ): EventSource {
   const source = new EventSource(`${BASE}/apps/git-refresh`)
   source.onmessage = (e) => {
-    const { repoName, status } = JSON.parse(e.data)
-    onUpdate(repoName, status)
+    const { repoName, status, branch } = JSON.parse(e.data)
+    onUpdate(repoName, status, branch ?? '')
   }
   source.addEventListener('done', () => { source.close(); onDone() })
   source.onerror = () => { source.close(); onDone() }

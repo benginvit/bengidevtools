@@ -93,6 +93,7 @@ static object MapApps(AppScanService scan, IProcessService proc) =>
         IsRunning    = proc.IsRunning(a.Id),
         HasLocalUser = a.HasLocalUser,
         GitStatus    = scan.GetGitStatus(a.RepoName),
+        GitBranch    = scan.GetGitBranch(a.RepoName),
         LocalhostUrl = a.HttpsPort.HasValue ? $"https://localhost:{a.HttpsPort}" : null,
     });
 
@@ -114,6 +115,7 @@ app.MapGet("/api/apps/status", async (AppScanService scan, IProcessService proc)
         Pid          = proc.GetPid(a.Id),
         HasException = proc.HasException(a.Id),
         GitStatus    = scan.GetGitStatus(a.RepoName),
+        GitBranch    = scan.GetGitBranch(a.RepoName),
     });
 });
 
@@ -264,9 +266,9 @@ app.MapGet("/api/apps/git-refresh", async (HttpContext ctx, AppScanService scan,
         await sem.WaitAsync(ctx.RequestAborted);
         try
         {
-            var status = await git.GetStatusAsync(Path.Combine(root, repoName), ctx.RequestAborted);
-            scan.SetGitStatus(repoName, status);
-            channel.Writer.TryWrite(JsonSerializer.Serialize(new { repoName, status }, jsonOpts));
+            var (status, branch) = await git.GetStatusAsync(Path.Combine(root, repoName), ctx.RequestAborted);
+            scan.SetGitStatus(repoName, status, branch);
+            channel.Writer.TryWrite(JsonSerializer.Serialize(new { repoName, status, branch }, jsonOpts));
         }
         finally { sem.Release(); }
     });

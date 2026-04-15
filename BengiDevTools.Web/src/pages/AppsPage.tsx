@@ -16,12 +16,13 @@ interface AppState extends ScannedApp {
 
 export default function AppsPage() {
   const [apps, setApps]               = useState<AppState[]>([])
-  const [scanning, setScanning]       = useState(false)
-  const [gitLoading, setGitLoading]         = useState(false)
+  const [scanning, setScanning]               = useState(false)
+  const [gitLoading, setGitLoading]           = useState(false)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
-  const [selectedId, setSelectedId]   = useState<string | null>(null)
+  const [checkoutLog, setCheckoutLog]         = useState<{ repoName: string; branch: string; message: string }[]>([])
+  const [selectedId, setSelectedId]           = useState<string | null>(null)
   const [localUserEditId, setLocalUserEditId] = useState<string | null>(null)
-  const [lastScanned, setLastScanned] = useState<string | null>(null)
+  const [lastScanned, setLastScanned]         = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const applyApps = useCallback((data: ScannedApp[]) => {
@@ -61,7 +62,7 @@ export default function AppsPage() {
       const map = new Map(statuses.map(s => [s.id, s]))
       setApps(prev => prev.map(a => {
         const s = map.get(a.id)
-        return s ? { ...a, isRunning: s.isRunning, isExternal: s.isExternal, pid: s.pid, hasException: s.hasException, gitStatus: s.gitStatus } : a
+        return s ? { ...a, isRunning: s.isRunning, isExternal: s.isExternal, pid: s.pid, hasException: s.hasException, gitStatus: s.gitStatus, gitBranch: s.gitBranch || a.gitBranch } : a
       }))
     } catch { /* server offline */ }
   }, [])
@@ -76,17 +77,21 @@ export default function AppsPage() {
   const handleGitRefresh = () => {
     setGitLoading(true)
     startGitRefresh(
-      (repoName, status) => setApps(prev =>
-        prev.map(a => a.repoName === repoName ? { ...a, gitStatus: status } : a)),
+      (repoName, status, branch) => setApps(prev =>
+        prev.map(a => a.repoName === repoName ? { ...a, gitStatus: status, gitBranch: branch || a.gitBranch } : a)),
       () => setGitLoading(false),
     )
   }
 
   const handleCheckoutAll = () => {
     setCheckoutLoading(true)
+    setCheckoutLog([])
     startCheckoutAll(
-      (repoName, branch, _message) => setApps(prev =>
-        prev.map(a => a.repoName === repoName ? { ...a, gitStatus: branch || 'Fel' } : a)),
+      (repoName, branch, message) => {
+        setCheckoutLog(prev => [...prev, { repoName, branch, message }])
+        setApps(prev => prev.map(a =>
+          a.repoName === repoName && branch ? { ...a, gitBranch: branch } : a))
+      },
       () => {
         setCheckoutLoading(false)
         handleGitRefresh()
@@ -139,6 +144,16 @@ export default function AppsPage() {
           </a>
         </div>
 
+        {checkoutLog.length > 0 && (
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, padding: '4px 6px', marginBottom: 4, background: 'var(--surface)', borderRadius: 4, maxHeight: 110, overflowY: 'auto' }}>
+            {checkoutLog.map((e, i) => (
+              <div key={i} style={{ color: e.branch ? 'var(--green)' : 'var(--red)' }}>
+                {e.repoName}: {e.branch ? e.branch : e.message}
+              </div>
+            ))}
+          </div>
+        )}
+
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0 8px', fontSize: 12 }}>
           <label className="cb">
             <input
@@ -159,9 +174,10 @@ export default function AppsPage() {
 
         <div className="apps-list">
           {groups.map(repoName => {
-            const repoApps  = apps.filter(a => a.repoName === repoName)
-            const gitStatus = repoApps[0]?.gitStatus ?? '–'
-            const gitClass  = gitStatus === 'Uppdaterad' ? 'ok' : gitStatus === 'Bakom' ? 'behind' : 'miss'
+            const repoApps   = apps.filter(a => a.repoName === repoName)
+            const gitStatus  = repoApps[0]?.gitStatus ?? '–'
+            const gitBranch  = repoApps[0]?.gitBranch ?? ''
+            const nameColor  = gitStatus === 'Uppdaterad' ? 'var(--green)' : gitStatus === 'Bakom' ? 'var(--yellow)' : 'var(--text)'
             const allChecked = repoApps.every(a => a.checked)
 
             return (
@@ -175,10 +191,12 @@ export default function AppsPage() {
                         prev.map(a => a.repoName === repoName ? { ...a, checked: e.target.checked } : a))}
                     />
                   </label>
-                  <span>{repoName}</span>
-                  <span className={`git-status ${gitClass}`} style={{ marginLeft: 'auto', fontWeight: 400 }}>
-                    {gitStatus}
-                  </span>
+                  <span style={{ color: nameColor }}>{repoName}</span>
+                  {gitBranch && (
+                    <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--muted)', fontFamily: 'var(--mono)' }}>
+                      {gitBranch}
+                    </span>
+                  )}
                 </div>
 
                 {repoApps.map(app => (

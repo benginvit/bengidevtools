@@ -27,6 +27,7 @@ public class AppScanService
     private readonly ISettingsService _settings;
     private List<ScannedApp> _cache = [];
     private readonly Dictionary<string, string> _gitStatuses = new();
+    private readonly Dictionary<string, string> _gitBranches = new();
     public DateTime? LastScanned { get; private set; }
 
     public AppScanService(ISettingsService settings) => _settings = settings;
@@ -39,8 +40,15 @@ public class AppScanService
     public string GetGitStatus(string repoName) =>
         _gitStatuses.TryGetValue(repoName, out var s) ? s : "–";
 
-    public void SetGitStatus(string repoName, string status) =>
+    public string GetGitBranch(string repoName) =>
+        _gitBranches.TryGetValue(repoName, out var b) ? b : "";
+
+    public void SetGitStatus(string repoName, string status, string branch = "")
+    {
         _gitStatuses[repoName] = status;
+        if (!string.IsNullOrEmpty(branch))
+            _gitBranches[repoName] = branch;
+    }
 
     // Load persisted cache from disk — call once on startup
     public void LoadCache()
