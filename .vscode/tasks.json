@@ -2,27 +2,20 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "build-api",
+      "label": "build",
       "type": "shell",
-      "command": "dotnet build BengiDevTools.Api/BengiDevTools.Api.csproj",
+      "command": "dotnet build BengiDevTools/BengiDevTools.csproj",
       "group": { "kind": "build", "isDefault": true },
       "presentation": { "reveal": "silent" },
       "problemMatcher": "$msCompile"
     },
     {
-      "label": "npm-install",
+      "label": "run",
       "type": "shell",
-      "command": "npm install",
-      "options": { "cwd": "${workspaceFolder}/BengiDevTools.Web" },
-      "presentation": { "reveal": "always" }
-    },
-    {
-      "label": "build-web",
-      "type": "shell",
-      "command": "npm run build",
-      "options": { "cwd": "${workspaceFolder}/BengiDevTools.Web" },
-      "dependsOn": ["build-api"],
-      "presentation": { "reveal": "always" }
+      "command": "dotnet run --project BengiDevTools/BengiDevTools.csproj",
+      "group": "none",
+      "presentation": { "reveal": "always", "panel": "dedicated" },
+      "problemMatcher": []
     }
   ]
 }
