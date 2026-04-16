@@ -1,0 +1,9 @@
+{
+  "forwardPorts": [5050],
+  "portsAttributes": {
+    "5050": {
+      "label": "BengiDevTools",
+      "onAutoForward": "openBrowser"
+    }
+  }
+}
