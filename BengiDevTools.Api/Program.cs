@@ -576,7 +576,7 @@ app.MapDelete("/api/debug/scenarios/{id}", (string id, ISettingsService s) =>
 app.MapRazorComponents<BengiDevTools.Components.App>()
     .AddInteractiveServerRenderMode();
 
-app.Run("http://localhost:5050");
+app.Run("http://0.0.0.0:5050");
 
 // ─── DTOs ─────────────────────────────────────────────────────────────────────
 
