@@ -18,6 +18,7 @@ builder.Services.AddRazorComponents()
 var app = builder.Build();
 
 app.UseStaticFiles();
+app.UseAntiforgery();
 
 app.Services.GetRequiredService<ISettingsService>().Load();
 app.Services.GetRequiredService<AppScanService>().LoadCache();
