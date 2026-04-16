@@ -5,11 +5,6 @@ using BengiDevTools.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddCors(opt => opt.AddDefaultPolicy(p => p
-    .WithOrigins("http://localhost:5173")
-    .AllowAnyHeader()
-    .AllowAnyMethod()));
-
 builder.Services.AddSingleton<ISettingsService, SettingsService>();
 builder.Services.AddSingleton<IBuildService,    BuildService>();
 builder.Services.AddSingleton<IProcessService,  ProcessService>();
@@ -17,11 +12,12 @@ builder.Services.AddSingleton<IGitService,      GitService>();
 builder.Services.AddSingleton<AppScanService>();
 builder.Services.AddHostedService<GitScanBackgroundService>();
 
+builder.Services.AddRazorComponents()
+    .AddInteractiveServerComponents();
+
 var app = builder.Build();
 
-app.UseDefaultFiles();
 app.UseStaticFiles();
-app.UseCors();
 
 app.Services.GetRequiredService<ISettingsService>().Load();
 app.Services.GetRequiredService<AppScanService>().LoadCache();
@@ -575,6 +571,9 @@ app.MapDelete("/api/debug/scenarios/{id}", (string id, ISettingsService s) =>
     SaveScenarios(s, list);
     return Results.Ok();
 });
+
+app.MapRazorComponents<BengiDevTools.Components.App>()
+    .AddInteractiveServerRenderMode();
 
 app.Run("http://localhost:5050");
 

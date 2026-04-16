@@ -1,0 +1,58 @@
+@page "/settings"
+@inject ISettingsService Settings
+
+<div class="settings-form">
+    <div class="section-header">Inställningar</div>
+
+    <div class="form-group">
+        <label class="form-label">Repo-rot</label>
+        <input class="input" @bind="_repoRoot" />
+    </div>
+
+    <div class="form-group">
+        <label class="form-label">SQL-anslutningssträng</label>
+        <input class="input" @bind="_sqlConn" />
+    </div>
+
+    <div class="form-group">
+        <label class="form-label">Debug-skript-sökväg</label>
+        <input class="input" @bind="_scriptsPath" />
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn primary" @onclick="Save">Spara</button>
+        @if (_saved)
+        {
+            <span style="color:var(--green);font-size:12px">✓ Sparat</span>
+        }
+    </div>
+</div>
+
+@code {
+    private string _repoRoot    = "";
+    private string _sqlConn     = "";
+    private string _scriptsPath = "";
+    private bool   _saved;
+
+    protected override void OnInitialized()
+    {
+        _repoRoot    = Settings.Settings.RepoRootPath;
+        _sqlConn     = Settings.Settings.SqlConnectionString;
+        _scriptsPath = Settings.Settings.DebugScriptsPath;
+    }
+
+    private void Save()
+    {
+        Settings.Settings.RepoRootPath        = _repoRoot;
+        Settings.Settings.SqlConnectionString = _sqlConn;
+        Settings.Settings.DebugScriptsPath    = _scriptsPath;
+        Settings.Save();
+        _saved = true;
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(2000);
+            _saved = false;
+            await InvokeAsync(StateHasChanged);
+        });
+    }
+}

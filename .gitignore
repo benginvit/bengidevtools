@@ -55,4 +55,7 @@ nunit-*.xml
 
 # Node / Frontend
 node_modules/
-BengiDevTools.Api/wwwroot/
+
+# React build output (replaced by Blazor)
+BengiDevTools.Api/wwwroot/assets/
+BengiDevTools.Api/wwwroot/index.html

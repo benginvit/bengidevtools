@@ -1,0 +1,13 @@
+@inherits LayoutComponentBase
+
+<div class="app-root">
+    <nav class="nav">
+        <NavLink href="/" Match="NavLinkMatch.All">Apps</NavLink>
+        <NavLink href="/build">Bygge</NavLink>
+        <NavLink href="/debug">Debug</NavLink>
+        <NavLink href="/settings">Inställningar</NavLink>
+    </nav>
+    <main class="page">
+        @Body
+    </main>
+</div>

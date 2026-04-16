@@ -1,0 +1,265 @@
+@page "/build"
+@inject ISettingsService Settings
+@inject IBuildService BuildSvc
+@implements IDisposable
+
+<div class="build-layout">
+    <!-- ── Sidebar ── -->
+    <div class="build-sidebar">
+        <div class="build-flags">
+            <label class="cb">
+                <input type="checkbox" @bind="_noRestore" />
+                <span>--no-restore</span>
+            </label>
+            <label class="cb">
+                <input type="checkbox" @bind="_noAnalyzers" />
+                <span>--no-analyzers</span>
+            </label>
+            <label class="cb">
+                <input type="checkbox" @bind="_noDocs" />
+                <span>--no-docs</span>
+            </label>
+            <label class="cb">
+                <input type="checkbox" @bind="_parallel" />
+                <span>Parallell</span>
+            </label>
+            <label class="cb" style="color:var(--yellow)">
+                <input type="checkbox" @bind="_snabb" @bind:after="OnSnabbChanged" />
+                <span>⚡ Snabb</span>
+            </label>
+        </div>
+
+        <div class="build-actions">
+            <button class="btn primary" disabled="@_isBuilding" @onclick="Build">
+                @(_isBuilding ? "⟳ Bygger..." : "▶ Bygg")
+            </button>
+            <button class="btn danger" disabled="@(!_isBuilding)" @onclick="Cancel">■ Avbryt</button>
+            <button class="btn sm" disabled="@_isBuilding" @onclick="LoadRepos" title="Ladda om repos">↺</button>
+        </div>
+
+        @if (_succeeded > 0 || _failed > 0)
+        {
+            <div style="font-size:12px;display:flex;gap:12px">
+                @if (_succeeded > 0) { <span style="color:var(--green)">✅ @_succeeded</span> }
+                @if (_failed > 0)    { <span style="color:var(--red)">❌ @_failed</span> }
+            </div>
+        }
+
+        <div class="repo-select-actions">
+            <button class="btn sm" @onclick="SelectAll">Alla</button>
+            <button class="btn sm" @onclick="SelectNone">Inga</button>
+        </div>
+
+        <div class="repo-list">
+            @if (_repos.Count == 0)
+            {
+                <div style="padding:12px 10px;color:var(--muted);font-size:12px">
+                    Inga repos hittade.<br />Kontrollera repo-rot i Inställningar.
+                </div>
+            }
+            @foreach (var repo in _repos)
+            {
+                <div class="repo-item @(repo.Selected ? "" : "repo-item-unselected")"
+                     style="cursor:@(repo.Selected ? "pointer" : "default")"
+                     @onclick="() => ScrollToRepo(repo.RepoName)">
+                    <label class="cb" @onclick:stopPropagation>
+                        <input type="checkbox" checked="@repo.Selected"
+                               @onchange="e => repo.Selected = (bool)(e.Value ?? false)" />
+                        <span>@repo.RepoName</span>
+                    </label>
+                    @if (!string.IsNullOrEmpty(repo.Status))
+                    {
+                        <span class="repo-status @StatusClass(repo.Status)">
+                            @StatusIcon(repo.Status)
+                        </span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- ── Per-repo log windows ── -->
+    <div class="build-windows" id="build-windows">
+        @if (!_repos.Any(r => r.Selected) && !_isBuilding)
+        {
+            <div style="color:var(--muted);padding:16px;font-family:var(--mono);font-size:12px">
+                // Välj repos och tryck Bygg
+            </div>
+        }
+        @foreach (var repo in _repos.Where(r => r.Selected))
+        {
+            <div class="repo-window" id="repo-@repo.RepoName">
+                <div class="repo-window-header">
+                    <span class="repo-window-name">@repo.RepoName</span>
+                    @if (!string.IsNullOrEmpty(repo.Status))
+                    {
+                        <span class="repo-status @StatusClass(repo.Status)">
+                            @(repo.Status == "OK" ? "✅ OK" : repo.Status == "FAILED" ? "❌ FAILED" : "⟳ " + repo.Status)
+                        </span>
+                    }
+                </div>
+                <div class="build-log" id="log-@repo.RepoName">@GetLog(repo.RepoName)</div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<RepoState> _repos      = [];
+    private bool            _isBuilding;
+    private bool            _noRestore;
+    private bool            _noAnalyzers;
+    private bool            _noDocs;
+    private bool            _parallel;
+    private bool            _snabb;
+    private CancellationTokenSource? _abortCts;
+    private PeriodicTimer?  _uiTimer;
+
+    private readonly Dictionary<string, StringBuilder> _repoLogs = new();
+    private readonly object _logLock = new();
+
+    private int _succeeded => _repos.Count(r => r.Status == "OK");
+    private int _failed    => _repos.Count(r => r.Status == "FAILED");
+
+    protected override void OnInitialized() => LoadRepos();
+
+    private void LoadRepos()
+    {
+        var root = Settings.Settings.RepoRootPath;
+        if (!Directory.Exists(root)) { _repos = []; return; }
+
+        var prev = _repos.ToDictionary(r => r.RepoName);
+        _repos = Directory.GetDirectories(root)
+            .OrderBy(d => d)
+            .Select(dir =>
+            {
+                var name = Path.GetFileName(dir);
+                var sln  = FindSln(dir);
+                if (sln is null) return null;
+                return new RepoState
+                {
+                    RepoName = name,
+                    SlnPath  = sln,
+                    Selected = prev.TryGetValue(name, out var p) ? p.Selected : true,
+                    Status   = "",
+                };
+            })
+            .Where(r => r is not null)
+            .Cast<RepoState>()
+            .ToList();
+    }
+
+    private static string? FindSln(string dir)
+    {
+        foreach (var pattern in new[] { "*.sln", "*.slnx" })
+        {
+            var f = Directory.GetFiles(dir, pattern, SearchOption.TopDirectoryOnly).FirstOrDefault()
+                 ?? Directory.GetFiles(dir, pattern, SearchOption.AllDirectories).FirstOrDefault();
+            if (f is not null) return f;
+        }
+        return null;
+    }
+
+    private void OnSnabbChanged()
+    {
+        if (_snabb) { _noRestore = true; _noAnalyzers = true; _noDocs = true; _parallel = true; }
+    }
+
+    private async Task Build()
+    {
+        var selected = _repos.Where(r => r.Selected).ToList();
+        if (selected.Count == 0) return;
+
+        _isBuilding = true;
+        lock (_logLock) _repoLogs.Clear();
+        foreach (var r in _repos) r.Status = "";
+        StateHasChanged();
+
+        _abortCts = new CancellationTokenSource();
+
+        // Refresh UI every 150ms during build
+        _uiTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(150));
+        _ = Task.Run(async () =>
+        {
+            while (_uiTimer is not null && await _uiTimer.WaitForNextTickAsync(CancellationToken.None).ConfigureAwait(false))
+                await InvokeAsync(StateHasChanged);
+        });
+
+        try
+        {
+            var targets = selected.Select(r => new RepoBuildTarget { RepoName = r.RepoName, SlnPath = r.SlnPath }).ToList();
+            var flags   = new BuildFlags
+            {
+                NoRestore   = _noRestore   || _snabb,
+                NoAnalyzers = _noAnalyzers || _snabb,
+                NoDocs      = _noDocs      || _snabb,
+                Parallel    = _parallel    || _snabb,
+            };
+
+            await BuildSvc.BuildAsync(
+                targets, flags,
+                onProgress: (repo, status) =>
+                {
+                    var r = _repos.FirstOrDefault(x => x.RepoName == repo);
+                    if (r is not null) r.Status = status;
+                },
+                onOutputLine: (repo, line) =>
+                {
+                    lock (_logLock)
+                    {
+                        if (!_repoLogs.TryGetValue(repo, out var sb))
+                            _repoLogs[repo] = sb = new StringBuilder();
+                        sb.AppendLine(line);
+                    }
+                },
+                _abortCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            lock (_logLock)
+                foreach (var r in selected)
+                    (_repoLogs.TryGetValue(r.RepoName, out var sb) ? sb : (_repoLogs[r.RepoName] = new StringBuilder()))
+                        .AppendLine("⛔ Bygge avbrutet.");
+        }
+        finally
+        {
+            _isBuilding = false;
+            _uiTimer?.Dispose();
+            _uiTimer = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void Cancel() => _abortCts?.Cancel();
+
+    private void SelectAll()  => _repos.ForEach(r => r.Selected = true);
+    private void SelectNone() => _repos.ForEach(r => r.Selected = false);
+
+    private void ScrollToRepo(string repoName) { /* JS scroll handled by id anchor */ }
+
+    private string GetLog(string repoName)
+    {
+        lock (_logLock)
+            return _repoLogs.TryGetValue(repoName, out var sb) ? sb.ToString() : "";
+    }
+
+    private static string StatusClass(string status) =>
+        status == "OK" ? "ok" : status == "FAILED" ? "failed" : status == "Bygger..." ? "active" : "";
+
+    private static string StatusIcon(string status) =>
+        status == "OK" ? "✅" : status == "FAILED" ? "❌" : "⟳";
+
+    public void Dispose()
+    {
+        _abortCts?.Cancel();
+        _uiTimer?.Dispose();
+    }
+
+    private class RepoState
+    {
+        public required string RepoName { get; init; }
+        public required string SlnPath  { get; init; }
+        public bool   Selected { get; set; }
+        public string Status   { get; set; } = "";
+    }
+}
