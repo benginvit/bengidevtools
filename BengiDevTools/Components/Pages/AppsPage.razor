@@ -6,157 +6,147 @@
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
-<div class="apps-layout">
-    <!-- ── Sidebar ── -->
-    <div class="apps-sidebar">
-        <div class="apps-toolbar">
-            <button class="btn" @onclick="DoScan" disabled="@_scanning"
-                    title="@(_lastScanned.HasValue ? "Senast scannad: " + _lastScanned.Value.ToLocalTime().ToString("g") : "Aldrig scannad")">
-                @(_scanning ? "⟳" : "⟳ Scanna")
-            </button>
-            @if (_lastScanned.HasValue)
+<div class="apps-page">
+    <!-- ── Toolbar ── -->
+    <div class="apps-toolbar">
+        <button class="btn" @onclick="DoScan" disabled="@_scanning"
+                title="@(_lastScanned.HasValue ? "Senast scannad: " + _lastScanned.Value.ToLocalTime().ToString("g") : "Aldrig scannad")">
+            @(_scanning ? "⟳" : "⟳ Scanna")
+        </button>
+        @if (_lastScanned.HasValue)
+        {
+            <span style="font-size:10px;color:var(--muted);align-self:center">
+                @_lastScanned.Value.ToLocalTime().ToString("d")
+            </span>
+        }
+        <button class="btn primary" @onclick="StartSelected" disabled="@(_checkedCount == 0)">
+            ▶ Starta (@_checkedCount)
+        </button>
+        <button class="btn danger" @onclick="StopAll">■ Stoppa alla</button>
+        <button class="btn" @onclick="DoGitRefresh" disabled="@(_gitLoading || _apps.Count == 0)"
+                title="Uppdatera git-status">
+            @(_gitLoading ? "⟳" : "⟳ Git")
+        </button>
+        <button class="btn" @onclick="DoCheckoutAll"
+                disabled="@(_checkoutLoading || _gitLoading || _apps.Count == 0)"
+                title="Checkout develop (eller master/main) och pull på alla repon">
+            @(_checkoutLoading ? "⟳" : "⎇ Develop")
+        </button>
+        <a class="btn" href="/api/apps/localuser/export" download="appsettings-localuser.zip"
+           title="Exportera alla localuser-filer" style="text-decoration:none">↓ Exportera</a>
+    </div>
+
+    @if (_checkoutLog.Count > 0)
+    {
+        <div style="font-family:var(--mono);font-size:11px;padding:4px 6px;margin-bottom:4px;background:var(--surface);border-radius:4px;max-height:110px;overflow-y:auto">
+            @foreach (var entry in _checkoutLog)
             {
-                <span style="font-size:10px;color:var(--muted);align-self:center">
-                    @_lastScanned.Value.ToLocalTime().ToString("d")
-                </span>
+                <div style="color:@(entry.Branch != string.Empty ? "var(--green)" : "var(--red)")">
+                    @entry.RepoName: @(entry.Branch != string.Empty ? entry.Branch : entry.Message)
+                </div>
             }
-            <button class="btn primary" @onclick="StartSelected" disabled="@(_checkedCount == 0)">
-                ▶ Starta (@_checkedCount)
-            </button>
-            <button class="btn danger" @onclick="StopAll">■ Stoppa alla</button>
-            <button class="btn" @onclick="DoGitRefresh" disabled="@(_gitLoading || _apps.Count == 0)"
-                    title="Uppdatera git-status">
-                @(_gitLoading ? "⟳" : "⟳ Git")
-            </button>
-            <button class="btn" @onclick="DoCheckoutAll"
-                    disabled="@(_checkoutLoading || _gitLoading || _apps.Count == 0)"
-                    title="Checkout develop (eller master/main) och pull på alla repon">
-                @(_checkoutLoading ? "⟳" : "⎇ Develop")
-            </button>
-            <a class="btn" href="/api/apps/localuser/export" download="appsettings-localuser.zip"
-               title="Exportera alla localuser-filer" style="text-decoration:none">↓ Exportera</a>
         </div>
+    }
 
-        @if (_checkoutLog.Count > 0)
-        {
-            <div style="font-family:var(--mono);font-size:11px;padding:4px 6px;margin-bottom:4px;background:var(--surface);border-radius:4px;max-height:110px;overflow-y:auto">
-                @foreach (var entry in _checkoutLog)
-                {
-                    <div style="color:@(entry.Branch != string.Empty ? "var(--green)" : "var(--red)")">
-                        @entry.RepoName: @(entry.Branch != string.Empty ? entry.Branch : entry.Message)
-                    </div>
-                }
-            </div>
-        }
+    <div style="display:flex;align-items:center;gap:8px;padding:4px 0 8px;font-size:12px">
+        <label class="cb">
+            <input type="checkbox" checked="@(_apps.Count > 0 && _apps.All(a => a.Checked))"
+                   @onchange="ToggleAllChecked" />
+            <span style="color:var(--muted)">Välj alla</span>
+        </label>
+        <span style="margin-left:auto;color:var(--muted)">@_runningCount/@_apps.Count kör</span>
+    </div>
 
-        <div style="display:flex;align-items:center;gap:8px;padding:4px 0 8px;font-size:12px">
-            <label class="cb">
-                <input type="checkbox" checked="@(_apps.Count > 0 && _apps.All(a => a.Checked))"
-                       @onchange="ToggleAllChecked" />
-                <span style="color:var(--muted)">Välj alla</span>
-            </label>
-            <span style="margin-left:auto;color:var(--muted)">@_runningCount/@_apps.Count kör</span>
+    @if (_apps.Count == 0 && !_scanning)
+    {
+        <div style="color:var(--muted);font-size:12px">
+            Tryck Scanna, eller kontrollera repo-rot i Inställningar.
         </div>
+    }
 
-        @if (_apps.Count == 0 && !_scanning)
+    <!-- ── App list ── -->
+    <div class="apps-list">
+        @foreach (var repoName in _groups)
         {
-            <div style="color:var(--muted);font-size:12px">
-                Tryck Scanna, eller kontrollera repo-rot i Inställningar.
-            </div>
-        }
+            var repoApps   = _apps.Where(a => a.RepoName == repoName).ToList();
+            var gitStatus  = repoApps.FirstOrDefault()?.GitStatus ?? "–";
+            var gitBranch  = repoApps.FirstOrDefault()?.GitBranch ?? string.Empty;
+            var allChecked = repoApps.All(a => a.Checked);
+            var nameColor  = gitStatus == "Uppdaterad" ? "var(--green)" : gitStatus == "Bakom" ? "var(--yellow)" : "var(--text)";
 
-        <div class="apps-list">
-            @foreach (var repoName in _groups)
-            {
-                var repoApps   = _apps.Where(a => a.RepoName == repoName).ToList();
-                var gitStatus  = repoApps.FirstOrDefault()?.GitStatus ?? "–";
-                var gitBranch  = repoApps.FirstOrDefault()?.GitBranch ?? string.Empty;
-                var allChecked = repoApps.All(a => a.Checked);
-                var nameColor  = gitStatus == "Uppdaterad" ? "var(--green)" : gitStatus == "Bakom" ? "var(--yellow)" : "var(--text)";
-
-                <div class="app-group">
-                    <div class="app-group-name">
-                        <label class="cb" @onclick:stopPropagation>
-                            <input type="checkbox" checked="@allChecked"
-                                   @onchange="e => SetRepoChecked(repoName, (bool)(e.Value ?? false))" />
-                        </label>
-                        <span style="color:@nameColor">@repoName</span>
-                        @if (!string.IsNullOrEmpty(gitBranch))
-                        {
-                            <span style="margin-left:auto;font-size:10px;color:var(--muted);font-family:var(--mono)">@gitBranch</span>
-                        }
-                    </div>
-
-                    @foreach (var app in repoApps)
+            <div class="app-group">
+                <div class="app-group-name">
+                    <label class="cb" @onclick:stopPropagation>
+                        <input type="checkbox" checked="@allChecked"
+                               @onchange="e => SetRepoChecked(repoName, (bool)(e.Value ?? false))" />
+                    </label>
+                    <span style="color:@nameColor">@repoName</span>
+                    @if (!string.IsNullOrEmpty(gitBranch))
                     {
-                        var dotClass  = app.HasException ? "exception" : app.IsExternal ? "external" : app.IsRunning ? "running" : "stopped";
-                        var isSelected = app.Id == _selectedId;
-                        var dotTitle  = app.HasException ? "Exception!" :
-                                        app.IsExternal   ? "Externt startad" :
-                                        app.IsRunning    ? $"PID {app.Pid} — klicka för att kopiera" : "Stoppad";
-                        var isBusy = _busyIds.Contains(app.Id);
+                        <span style="margin-left:auto;font-size:10px;color:var(--muted);font-family:var(--mono)">@gitBranch</span>
+                    }
+                </div>
 
-                        <div class="app-row @(isSelected ? "app-row-selected" : "")"
-                             style="cursor:pointer" @onclick="() => ToggleSelected(app.Id)">
-                            <input type="checkbox" checked="@app.Checked"
-                                   style="accent-color:var(--blue);width:13px;height:13px;cursor:pointer;flex-shrink:0"
-                                   @onclick:stopPropagation
-                                   @onchange="e => app.Checked = (bool)(e.Value ?? false)" />
-                            <div class="app-dot @dotClass" title="@dotTitle"
-                                 @onclick:stopPropagation @onclick="() => CopyPid(app)"></div>
-                            <span class="app-name">@app.ProjectName</span>
-                            <span class="app-port">@(app.HttpsPort.HasValue ? ":" + app.HttpsPort : string.Empty)</span>
-                            <div class="app-actions" @onclick:stopPropagation>
-                                <button class="btn sm"
-                                        title="@(app.HasLocalUser ? "Redigera appsettings.localuser.json" : "Skapa appsettings.localuser.json")"
-                                        style="opacity:@(app.HasLocalUser ? "1" : "0.4")"
-                                        @onclick="() => OpenLocalUser(app.Id)">⚙</button>
-                                @if (!app.IsRunning)
+                @foreach (var app in repoApps)
+                {
+                    var dotClass   = app.HasException ? "exception" : app.IsExternal ? "external" : app.IsRunning ? "running" : "stopped";
+                    var dotTitle   = app.HasException ? "Exception!" :
+                                     app.IsExternal   ? "Externt startad" :
+                                     app.IsRunning    ? $"PID {app.Pid} — klicka för att kopiera" : "Stoppad";
+                    var isBusy     = _busyIds.Contains(app.Id);
+                    var isExpanded = _consoles.ContainsKey(app.Id);
+                    var consoleId  = "con-" + app.Id.Replace('/', '-');
+
+                    <div class="app-row @(isExpanded ? "app-row-selected" : "")"
+                         style="cursor:pointer" @onclick="() => ToggleConsole(app.Id)">
+                        <input type="checkbox" checked="@app.Checked"
+                               style="accent-color:var(--blue);width:13px;height:13px;cursor:pointer;flex-shrink:0"
+                               @onclick:stopPropagation
+                               @onchange="e => app.Checked = (bool)(e.Value ?? false)" />
+                        <div class="app-dot @dotClass" title="@dotTitle"
+                             @onclick:stopPropagation @onclick="() => CopyPid(app)"></div>
+                        <span class="app-name">@app.ProjectName</span>
+                        <span class="app-port">@(app.HttpsPort.HasValue ? ":" + app.HttpsPort : string.Empty)</span>
+                        <div class="app-actions" @onclick:stopPropagation>
+                            <button class="btn sm"
+                                    title="@(app.HasLocalUser ? "Redigera appsettings.localuser.json" : "Skapa appsettings.localuser.json")"
+                                    style="opacity:@(app.HasLocalUser ? "1" : "0.4")"
+                                    @onclick="() => OpenLocalUser(app.Id)">⚙</button>
+                            @if (!app.IsRunning)
+                            {
+                                <button class="btn sm" disabled="@isBusy" @onclick="() => AppStart(app)">▶</button>
+                            }
+                            else
+                            {
+                                <button class="btn sm" disabled="@isBusy" @onclick="() => AppRestart(app)">⟳</button>
+                                <button class="btn sm danger" disabled="@isBusy" @onclick="() => AppStop(app)">■</button>
+                            }
+                        </div>
+                    </div>
+
+                    @if (isExpanded && _consoles.TryGetValue(app.Id, out var con))
+                    {
+                        <div class="app-log-window">
+                            <div class="debug-console-header">
+                                <span style="color:var(--blue);font-weight:600;font-size:11px">@app.ProjectName</span>
+                                <button class="btn sm" @onclick="() => ClearConsole(app.Id)">Rensa</button>
+                            </div>
+                            <div class="build-log" id="@consoleId">
+                                @if (con.Lines.Count == 0)
                                 {
-                                    <button class="btn sm" disabled="@isBusy" @onclick="() => AppStart(app)">▶</button>
+                                    <span style="color:var(--muted)">Väntar på output...</span>
                                 }
                                 else
                                 {
-                                    <button class="btn sm" disabled="@isBusy" @onclick="() => AppRestart(app)">⟳</button>
-                                    <button class="btn sm danger" disabled="@isBusy" @onclick="() => AppStop(app)">■</button>
+                                    @foreach (var line in con.Lines)
+                                    {
+                                        <div style="color:@ColorLine(line)">@(string.IsNullOrEmpty(line) ? "\u00A0" : line)</div>
+                                    }
                                 }
                             </div>
                         </div>
                     }
-                </div>
-            }
-        </div>
-    </div>
-
-    <!-- ── Debug console ── -->
-    <div class="apps-console">
-        @if (_selectedId is not null)
-        {
-            var selApp = _apps.FirstOrDefault(a => a.Id == _selectedId);
-            <div class="debug-console">
-                <div class="debug-console-header">
-                    <span style="color:var(--blue);font-weight:600">@(selApp?.ProjectName ?? _selectedId)</span>
-                    <button class="btn sm" @onclick="ClearConsole">Rensa</button>
-                </div>
-                <div class="build-log" id="console-log">
-                    @if (_outputLines.Count == 0)
-                    {
-                        <span style="color:var(--muted)">Väntar på output...</span>
-                    }
-                    else
-                    {
-                        @foreach (var line in _outputLines)
-                        {
-                            <div style="color:@ColorLine(line)">@(string.IsNullOrEmpty(line) ? "\u00A0" : line)</div>
-                        }
-                    }
-                </div>
-            </div>
-        }
-        else
-        {
-            <div style="color:var(--muted);font-size:12px;padding:16px;font-family:var(--mono)">
-                // Klicka på en applikation för att se debug-output
+                }
             </div>
         }
     </div>
@@ -210,15 +200,12 @@
     private bool                     _gitLoading;
     private bool                     _checkoutLoading;
     private DateTime?                _lastScanned;
-    private string?                  _selectedId;
     private readonly HashSet<string> _busyIds         = [];
 
     private readonly List<CheckoutEntry> _checkoutLog = [];
 
-    // Console output
-    private readonly List<string>    _outputLines  = [];
-    private int                      _outputOffset;
-    private CancellationTokenSource  _outputCts    = new();
+    // Per-app consoles (keyed by app.Id)
+    private readonly Dictionary<string, ConsoleState> _consoles = new();
 
     // LocalUser modal
     private string? _localUserEditId;
@@ -229,10 +216,8 @@
     private bool    _localUserSaving;
     private string? _localUserError;
 
-    // Poll cancellation
     private readonly CancellationTokenSource _cts = new();
 
-    // Derived
     private IEnumerable<string> _groups       => _apps.Select(a => a.RepoName).Distinct();
     private int                 _checkedCount  => _apps.Count(a => a.Checked);
     private int                 _runningCount  => _apps.Count(a => a.IsRunning);
@@ -249,11 +234,11 @@
     public async ValueTask DisposeAsync()
     {
         _cts.Cancel();
-        _outputCts.Cancel();
+        foreach (var c in _consoles.Values) c.Dispose();
         await Task.CompletedTask;
     }
 
-    // ── Build app list ─────────────────────────────────────────────────────────
+    // ── App list ───────────────────────────────────────────────────────────────
 
     private void BuildAppList()
     {
@@ -276,7 +261,7 @@
         }).ToList();
     }
 
-    // ── Poll loop ──────────────────────────────────────────────────────────────
+    // ── Poll ───────────────────────────────────────────────────────────────────
 
     private async Task PollLoop()
     {
@@ -299,7 +284,7 @@
                 await InvokeAsync(StateHasChanged);
             }
             catch (OperationCanceledException) { break; }
-            catch { /* offline */ }
+            catch { }
         }
     }
 
@@ -314,7 +299,7 @@
         _scanning = false;
     }
 
-    // ── Git operations ─────────────────────────────────────────────────────────
+    // ── Git ────────────────────────────────────────────────────────────────────
 
     private async Task DoGitRefresh()
     {
@@ -418,43 +403,49 @@
     private string GetCsprojPath(string id) =>
         Scan.GetById(id)?.CsprojPath ?? throw new InvalidOperationException($"App {id} not found");
 
-    // ── Console output ─────────────────────────────────────────────────────────
+    // ── Console (expandable per app) ───────────────────────────────────────────
 
-    private void ToggleSelected(string id)
+    private void ToggleConsole(string id)
     {
-        _outputCts.Cancel();
-        if (_selectedId == id) { _selectedId = null; return; }
-        _outputCts    = new CancellationTokenSource();
-        _selectedId   = id;
-        _outputLines.Clear();
-        _outputOffset = 0;
-        _ = OutputPollLoop(_outputCts.Token);
+        if (_consoles.TryGetValue(id, out var existing))
+        {
+            existing.Dispose();
+            _consoles.Remove(id);
+        }
+        else
+        {
+            var state = new ConsoleState();
+            var buffer = Proc.GetOutputBuffer(id);
+            state.Lines.AddRange(buffer.TakeLast(2000));
+            state.Offset = buffer.Count;
+            _consoles[id] = state;
+            _ = PollConsole(id, state, state.Cts.Token);
+        }
     }
 
-    private async Task OutputPollLoop(CancellationToken ct)
+    private async Task PollConsole(string id, ConsoleState state, CancellationToken ct)
     {
+        var consoleId = "con-" + id.Replace('/', '-');
         while (!ct.IsCancellationRequested)
         {
-            var all      = Proc.GetOutputBuffer(_selectedId!);
-            var newLines = all.Skip(_outputOffset).ToArray();
+            var all      = Proc.GetOutputBuffer(id);
+            var newLines = all.Skip(state.Offset).ToArray();
             if (newLines.Length > 0)
             {
-                foreach (var line in newLines) _outputLines.Add(line);
-                if (_outputLines.Count > 2000) _outputLines.RemoveRange(0, _outputLines.Count - 2000);
-                _outputOffset += newLines.Length;
+                foreach (var line in newLines) state.Lines.Add(line);
+                if (state.Lines.Count > 2000) state.Lines.RemoveRange(0, state.Lines.Count - 2000);
+                state.Offset += newLines.Length;
                 await InvokeAsync(StateHasChanged);
-                await ScrollConsoleToBottom();
+                try { await JS.InvokeVoidAsync("scrollToBottom", consoleId, ct); } catch { }
             }
             try { await Task.Delay(800, ct); } catch (OperationCanceledException) { break; }
         }
     }
 
-    private async Task ScrollConsoleToBottom()
+    private void ClearConsole(string id)
     {
-        try { await JS.InvokeVoidAsync("scrollToBottom", "console-log"); } catch { }
+        if (_consoles.TryGetValue(id, out var state)) state.Lines.Clear();
     }
-
-    private void ClearConsole() => _outputLines.Clear();
 
     private static string ColorLine(string line)
     {
@@ -484,7 +475,6 @@
         _localUserContent = string.Empty;
         _localUserPath    = string.Empty;
         _localUserExists  = false;
-
         var app = Scan.GetById(id);
         if (app is not null)
         {
@@ -533,6 +523,14 @@
         public bool            HasException  { get; set; }
         public bool            IsExternal    { get; set; }
         public int             Pid           { get; set; } = -1;
+    }
+
+    private class ConsoleState : IDisposable
+    {
+        public List<string>          Lines  { get; } = new();
+        public int                   Offset { get; set; }
+        public CancellationTokenSource Cts  { get; } = new();
+        public void Dispose() => Cts.Cancel();
     }
 
     private record CheckoutEntry(string RepoName, string Branch, string Message);

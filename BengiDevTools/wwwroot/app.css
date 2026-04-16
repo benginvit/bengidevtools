@@ -121,27 +121,10 @@ body {
 
 /* ─── Apps page ────────────────────────────────────────────────────────────── */
 
-.apps-layout {
-  display: grid;
-  grid-template-columns: 400px 1fr;
-  gap: 12px;
-  height: calc(100vh - 80px);
-}
-
-.apps-sidebar {
+.apps-page {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  min-height: 0;
-}
-
-.apps-list {
-  flex: 1;
-  overflow-y: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 4px 0;
-  background: var(--panel);
+  gap: 0;
 }
 
 .apps-toolbar {
@@ -151,13 +134,12 @@ body {
   flex-wrap: wrap;
 }
 
-.debug-console {
-  display: flex;
-  flex-direction: column;
+.apps-list {
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  overflow: hidden;
-  height: 100%;
+  padding: 4px 0;
+  background: var(--panel);
+  overflow-y: auto;
 }
 
 .debug-console-header {
@@ -165,13 +147,25 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 5px 10px;
-  background: var(--panel);
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   font-size: 12px;
 }
 
-.app-console { flex: 1; overflow: hidden; }
+.app-log-window {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 0 0 var(--radius) var(--radius);
+  overflow: hidden;
+  margin: 0 6px 6px 6px;
+}
+
+.app-log-window .build-log {
+  height: 260px;
+  overflow-y: auto;
+}
 
 .app-group { margin-bottom: 4px; }
 
