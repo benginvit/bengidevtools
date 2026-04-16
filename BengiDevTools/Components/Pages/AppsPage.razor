@@ -65,7 +65,7 @@
     }
 
     <!-- ── App list ── -->
-    <div class="apps-list">
+    <div class="apps-list" style="flex:1;min-height:0">
         @foreach (var repoName in _groups)
         {
             var repoApps   = _apps.Where(a => a.RepoName == repoName).ToList();
@@ -152,6 +152,29 @@
     </div>
 </div>
 
+<!-- ── Status bar ── -->
+@if (_statusLog.Count > 0)
+{
+    <div class="status-bar">
+        <div class="status-bar-header">
+            <span class="status-bar-title">
+                @if (_statusBusy)
+                {
+                    <span class="status-spinner">⟳</span>
+                }
+                Status
+            </span>
+            <button class="btn sm" @onclick="() => _statusLog.Clear()">✕</button>
+        </div>
+        <div class="status-bar-log" id="status-log">
+            @foreach (var entry in _statusLog)
+            {
+                <div style="color:@StatusColor(entry)">@entry</div>
+            }
+        </div>
+    </div>
+}
+
 <!-- ── LocalUser modal ── -->
 @if (_localUserEditId is not null)
 {
@@ -215,6 +238,10 @@
     private bool    _localUserLoading;
     private bool    _localUserSaving;
     private string? _localUserError;
+
+    // Status log (sticky bottom bar)
+    private readonly List<string> _statusLog  = [];
+    private bool                  _statusBusy;
 
     private readonly CancellationTokenSource _cts = new();
 
@@ -288,23 +315,66 @@
         }
     }
 
+    // ── Status log helpers ─────────────────────────────────────────────────────
+
+    private void StatusLog(string msg)
+    {
+        _statusLog.Add(msg);
+        if (_statusLog.Count > 200) _statusLog.RemoveAt(0);
+    }
+
+    private async Task StatusLogAsync(string msg)
+    {
+        await InvokeAsync(() => { StatusLog(msg); StateHasChanged(); });
+        try { await JS.InvokeVoidAsync("scrollToBottom", "status-log", _cts.Token); } catch { }
+    }
+
+    private static string StatusColor(string line)
+    {
+        if (line.StartsWith("──")) return "var(--muted)";
+        if (line.Contains("Fel:") || line.Contains("saknas") || line.Contains("Okänd")) return "var(--red)";
+        if (line.Contains("Bakom")) return "var(--yellow)";
+        if (line.Contains("klar", StringComparison.OrdinalIgnoreCase)
+            || line.Contains("Uppdaterad") || line.Contains("OK")) return "var(--green)";
+        return "var(--text)";
+    }
+
     // ── Scan ───────────────────────────────────────────────────────────────────
 
     private async Task DoScan()
     {
-        _scanning = true;
-        await Task.Run(() => Scan.Scan());
+        _scanning    = true;
+        _statusBusy  = true;
+        StatusLog("──── Scanna ────────────────────────────");
+        await Task.Run(() => Scan.Scan(msg =>
+            _ = StatusLogAsync(msg)));
         BuildAppList();
         _lastScanned = Scan.LastScanned;
-        _scanning = false;
+        _scanning    = false;
+        await InvokeAsync(StateHasChanged);
+
+        // Git i samma flöde
+        await DoGitRefreshCore();
+        _statusBusy = false;
+        await InvokeAsync(StateHasChanged);
     }
 
     // ── Git ────────────────────────────────────────────────────────────────────
 
     private async Task DoGitRefresh()
     {
+        _statusBusy = true;
+        await DoGitRefreshCore();
+        _statusBusy = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task DoGitRefreshCore()
+    {
         _gitLoading = true;
-        StateHasChanged();
+        StatusLog("──── Git fetch & status ─────────────────");
+        await InvokeAsync(StateHasChanged);
+
         var root  = Settings.Settings.RepoRootPath;
         var repos = _apps.Select(a => a.RepoName).Distinct().ToList();
         var sem   = new SemaphoreSlim(4);
@@ -320,12 +390,15 @@
                     app.GitStatus = status;
                     if (!string.IsNullOrEmpty(branch)) app.GitBranch = branch;
                 }
-                await InvokeAsync(StateHasChanged);
+                var branchLabel = string.IsNullOrEmpty(branch) ? "" : $" [{branch}]";
+                await StatusLogAsync($"  {repoName}{branchLabel}  →  {status}");
             }
             catch (OperationCanceledException) { }
             finally { sem.Release(); }
         }));
+
         _gitLoading = false;
+        StatusLog("──── Git klar ───────────────────────────");
         await InvokeAsync(StateHasChanged);
     }
 
@@ -333,7 +406,10 @@
     {
         _checkoutLoading = true;
         _checkoutLog.Clear();
-        StateHasChanged();
+        _statusBusy = true;
+        StatusLog("──── Checkout develop / pull ────────────");
+        await InvokeAsync(StateHasChanged);
+
         var root  = Settings.Settings.RepoRootPath;
         var repos = _apps.Select(a => a.RepoName).Distinct().ToList();
         var sem   = new SemaphoreSlim(2);
@@ -347,14 +423,19 @@
                 if (!string.IsNullOrEmpty(branch))
                     foreach (var app in _apps.Where(a => a.RepoName == repoName))
                         app.GitBranch = branch;
-                await InvokeAsync(StateHasChanged);
+                var label = string.IsNullOrEmpty(branch) ? message : $"{branch}  {message}";
+                await StatusLogAsync($"  {repoName}  →  {label}");
             }
             catch (OperationCanceledException) { }
             finally { sem.Release(); }
         }));
+
         _checkoutLoading = false;
+        StatusLog("──── Checkout klar, hämtar git-status ──");
         await InvokeAsync(StateHasChanged);
-        await DoGitRefresh();
+        await DoGitRefreshCore();
+        _statusBusy = false;
+        await InvokeAsync(StateHasChanged);
     }
 
     // ── Checkbox helpers ───────────────────────────────────────────────────────

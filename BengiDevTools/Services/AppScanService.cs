@@ -66,19 +66,34 @@ public class AppScanService
     }
 
     // Full disk scan + persist result
-    public IReadOnlyList<ScannedApp> Scan()
+    public IReadOnlyList<ScannedApp> Scan(Action<string>? progress = null)
     {
         var root = _settings.Settings.RepoRootPath;
         if (!Directory.Exists(root))
+        {
+            progress?.Invoke($"Fel: repo-rot saknas ({root})");
             return _cache = [];
+        }
 
-        _cache = Directory.GetDirectories(root)
-            .OrderBy(d => d)
-            .SelectMany(ScanRepo)
-            .ToList();
+        var repoDirs = Directory.GetDirectories(root).OrderBy(d => d).ToList();
+        progress?.Invoke($"Hittade {repoDirs.Count} repon i {root}");
 
+        var result = new List<ScannedApp>();
+        foreach (var dir in repoDirs)
+        {
+            var repoName = Path.GetFileName(dir);
+            var apps = ScanRepo(dir).ToList();
+            progress?.Invoke(apps.Count > 0
+                ? $"  {repoName}  →  {apps.Count} projekt"
+                : $"  {repoName}  (inga körbara projekt)");
+            result.AddRange(apps);
+        }
+
+        _cache      = result;
         LastScanned = DateTime.UtcNow;
+        progress?.Invoke($"Sparar cache ({result.Count} projekt)...");
         SaveCache();
+        progress?.Invoke($"Scan klar — {result.Count} projekt totalt");
         return _cache;
     }
 
