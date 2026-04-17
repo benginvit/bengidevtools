@@ -149,6 +149,7 @@ static void SetAspirePaths()
     Environment.SetEnvironmentVariable("ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL",   "http://0.0.0.0:18889");
     Environment.SetEnvironmentVariable("DOTNET_DASHBOARD_OTLP_ENDPOINT_URL",   "http://0.0.0.0:18889");
     Environment.SetEnvironmentVariable("ASPIRE_ALLOW_UNSECURED_TRANSPORT",     "true");
+    Environment.SetEnvironmentVariable("DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS", "true");
 }
 
 record SettingsDto(
