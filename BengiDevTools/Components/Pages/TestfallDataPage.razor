@@ -83,8 +83,23 @@
                     </div>
                     <div class="form-row">
                         <div class="form-group" style="flex:2"><label class="form-label">Namn</label><input class="input" @bind="_form.SubjektNamn" @bind:event="oninput" /></div>
-                        <div class="form-group" style="flex:1"><label class="form-label">Ursprung</label><input class="input" @bind="_form.SubjektUrsprung" @bind:event="oninput" /></div>
-                        <div class="form-group" style="flex:1"><label class="form-label">Typ</label><input class="input" @bind="_form.Subjekttyp" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1">
+                            <label class="form-label">Ursprung</label>
+                            <select class="input" @bind="_form.SubjektUrsprung">
+                                <option value="">—</option>
+                                <option value="1">1 – POI</option>
+                                <option value="2">2 – USB</option>
+                                <option value="3">3 – Beslutssystem</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex:1">
+                            <label class="form-label">Typ</label>
+                            <select class="input" @bind="_form.Subjekttyp">
+                                <option value="">—</option>
+                                <option value="1">1 – Fysisk</option>
+                                <option value="2">2 – Juridisk</option>
+                            </select>
+                        </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group" style="flex:2"><label class="form-label">Adress</label><input class="input" @bind="_form.SubjektAdress" @bind:event="oninput" /></div>
@@ -125,21 +140,77 @@
                         <div class="form-group" style="flex:1"><label class="form-label">Fordran Referens</label><input class="input" @bind="_form.FordranReferens" @bind:event="oninput" /></div>
                     </div>
                     <div class="form-row">
-                        <div class="form-group" style="flex:1"><label class="form-label">Kanal</label><input class="input" @bind="_form.Inbetalningskanal" @bind:event="oninput" /></div>
-                        <div class="form-group" style="flex:1"><label class="form-label">Kontogrupp</label><input class="input" @bind="_form.InbetalningKontogrupp" @bind:event="oninput" /></div>
-                        <div class="form-group" style="flex:1"><label class="form-label">Uppbördsområde</label><input class="input" @bind="_form.FordranUppbordsomrade" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1">
+                            <label class="form-label">Kanal</label>
+                            <select class="input" @bind="_form.Inbetalningskanal">
+                                <option value="">—</option>
+                                <option value="1">1 – Bankgiro</option>
+                                <option value="2">2 – Autogiro</option>
+                                <option value="3">3 – Danskebank</option>
+                                <option value="4">4 – Kammarkollegiet</option>
+                                <option value="5">5 – Kronofogden</option>
+                                <option value="6">6 – Parktrade</option>
+                                <option value="7">7 – Swedbank</option>
+                                <option value="8">8 – Direktbetalning</option>
+                                <option value="9">9 – Polismyndigheten</option>
+                                <option value="10">10 – Kontant</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex:1">
+                            <label class="form-label">Kontogrupp</label>
+                            <select class="input" @bind="_form.InbetalningKontogrupp">@PenningOptions</select>
+                        </div>
+                        <div class="form-group" style="flex:1">
+                            <label class="form-label">Uppbördsområde</label>
+                            <select class="input" @bind="_form.FordranUppbordsomrade">@PenningOptions</select>
+                        </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group" style="flex:1"><label class="form-label">Inbetalning Belopp</label><input class="input" @bind="_form.InbetalningBelopp" @bind:event="oninput" /></div>
                         <div class="form-group" style="flex:1"><label class="form-label">Fordran Saldo</label><input class="input" @bind="_form.FordranSaldo" @bind:event="oninput" /></div>
                         <div class="form-group" style="flex:1"><label class="form-label">Fordran Grundbelopp</label><input class="input" @bind="_form.FordranGrundbelopp" @bind:event="oninput" /></div>
-                        <div class="form-group" style="flex:1"><label class="form-label">Fordran Status</label><input class="input" @bind="_form.FordranStatus" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1">
+                            <label class="form-label">Fordran Status</label>
+                            <select class="input" @bind="_form.FordranStatus">
+                                <option value="">—</option>
+                                <option value="0">0 – EnumSaknas</option>
+                                <option value="1">1 – Makulerad</option>
+                                <option value="2">2 – Indrivning</option>
+                                <option value="3">3 – Borttagen</option>
+                                <option value="4">4 – Förfallen (DA)</option>
+                                <option value="5">5 – Förfallen (Ingen DA)</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div class="section-header">Igun</div>
                     <div class="form-row">
-                        <div class="form-group" style="flex:1"><label class="form-label">Signal Post (JSON)</label><input class="input" @bind="_form.IgunSignalPost" @bind:event="oninput" /></div>
-                        <div class="form-group" style="flex:1"><label class="form-label">Signal Resultat (JSON)</label><input class="input" @bind="_form.IgunSignalResultat" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1">
+                            <label class="form-label">Signal Post</label>
+                            <select class="input" @bind="_form.IgunSignalPost">
+                                <option value="">—</option>
+                                <option value="0">0 – EnumSaknas</option>
+                                <option value="1">1 – PostFinns</option>
+                                <option value="2">2 – PostFinnsEj</option>
+                                <option value="3">3 – PostMakulerad</option>
+                                <option value="4">4 – RedanUtfort</option>
+                                <option value="5">5 – TeknisktFel</option>
+                                <option value="6">6 – Valideringsfel</option>
+                                <option value="7">7 – RestfordPost</option>
+                                <option value="8">8 – DrojsMalsavgiftFinns</option>
+                                <option value="9">9 – SaldoArNoll</option>
+                                <option value="10">10 – AgarbyteHarSkett</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex:1">
+                            <label class="form-label">Signal Resultat</label>
+                            <select class="input" @bind="_form.IgunSignalResultat">
+                                <option value="">—</option>
+                                <option value="0">0 – EnumSaknas</option>
+                                <option value="1">1 – Genomford</option>
+                                <option value="2">2 – Misslyckades</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             }
@@ -172,6 +243,30 @@
 </div>
 
 @code {
+    private static readonly (string Value, string Label)[] Penningklasser =
+    [
+        ("31","AN – Infrastrukturavgift"), ("32","TN – Trängselskatt"),
+        ("33","FS – Fordonsskatt"),        ("34","KA – Körkortsavgift"),
+        ("35","YT – Yrkestrafikavgift"),   ("36","SA – Saluvagnsskatt"),
+        ("37","VA – Vägavgift"),           ("38","PA – Parkeringsavgift"),
+        ("39","KKKK"),                     ("40","TA – Tillsynsavgift"),
+        ("41","UK – Ursprungskontroll"),   ("42","TS"),
+        ("43","ODEF – Odefinierad"),
+    ];
+
+    private RenderFragment PenningOptions => builder =>
+    {
+        builder.OpenElement(0, "option"); builder.AddAttribute(1, "value", ""); builder.AddContent(2, "—"); builder.CloseElement();
+        int seq = 3;
+        foreach (var (v, l) in Penningklasser)
+        {
+            builder.OpenElement(seq++, "option");
+            builder.AddAttribute(seq++, "value", v);
+            builder.AddContent(seq++, $"{v} – {l}");
+            builder.CloseElement();
+        }
+    };
+
     private string       _filter     = "";
     private TestDataRow? _selected;
     private bool         _editMode;
