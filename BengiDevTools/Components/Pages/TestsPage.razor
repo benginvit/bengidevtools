@@ -1,0 +1,277 @@
+@page "/testfall"
+@inject ITestCaseService Svc
+@inject ISettingsService Settings
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="testfall-page">
+
+    <!-- ── Toolbar ── -->
+    <div class="apps-toolbar" style="margin-bottom:8px">
+        <input class="input" style="width:220px" placeholder="🔍 Sök..." @bind="_filter" @bind:event="oninput" />
+        <button class="btn primary" @onclick="StartNew">+ Nytt</button>
+        <button class="btn primary" @onclick="RunSelected"
+                disabled="@(_busy || _checked.Count == 0)">
+            @(_busy ? "⟳" : $"▶ Kör ({_checked.Count})")
+        </button>
+        <button class="btn" @onclick="ExportSelected"
+                disabled="@(_checked.Count == 0)" title="Kopiera SQL till urklipp">
+            ↓ Exportera (@_checked.Count)
+        </button>
+        <button class="btn" @onclick="CheckAll">Välj alla</button>
+        <button class="btn" @onclick="ClearChecked">Rensa val</button>
+        <span style="margin-left:auto;color:var(--muted);font-size:11px;align-self:center">
+            @Filtered.Count() testfall
+        </span>
+    </div>
+
+    <div class="testfall-layout">
+
+        <!-- ── Left: list ── -->
+        <div class="testfall-list">
+            @foreach (var tc in Filtered)
+            {
+                var isSelected = _selected == tc;
+                <div class="testfall-row @(isSelected ? "testfall-row-selected" : "")"
+                     @onclick="() => Select(tc)">
+                    <input type="checkbox" checked="@_checked.Contains(tc.DataSetId)"
+                           style="accent-color:var(--blue);flex-shrink:0"
+                           @onclick:stopPropagation
+                           @onchange="e => Toggle(tc.DataSetId, (bool)(e.Value ?? false))" />
+                    <span class="testfall-id">#@tc.DataSetId</span>
+                    @if (!string.IsNullOrEmpty(tc.Tag))
+                    {
+                        <span class="testfall-tag">@tc.Tag</span>
+                    }
+                    <span class="testfall-name">@tc.Beskrivning</span>
+                </div>
+            }
+            @if (!Filtered.Any())
+            {
+                <div style="padding:12px;color:var(--muted);font-size:12px">
+                    @(Svc.Cases.Count == 0 ? "Inga testfall — klicka + Nytt för att lägga till." : "Inga träffar.")
+                </div>
+            }
+        </div>
+
+        <!-- ── Right: editor / output ── -->
+        <div class="testfall-editor">
+            @if (_editMode)
+            {
+                <!-- Add/Edit form -->
+                <div class="testfall-form-header">
+                    <span style="font-weight:600;color:var(--blue)">@(_isNew ? "Nytt testfall" : $"Redigera #{_form.DataSetId}")</span>
+                    <div style="display:flex;gap:6px">
+                        <button class="btn sm primary" @onclick="SaveForm">Spara</button>
+                        <button class="btn sm" @onclick="CancelEdit">Avbryt</button>
+                    </div>
+                </div>
+                <div class="testfall-form-body">
+                    <div class="form-row">
+                        <div class="form-group" style="width:120px">
+                            <label class="form-label">DataSetId</label>
+                            <input class="input" type="number" @bind="_form.DataSetId" />
+                        </div>
+                        <div class="form-group" style="flex:1">
+                            <label class="form-label">Tag (kategori)</label>
+                            <input class="input" @bind="_form.Tag" @bind:event="oninput" placeholder="t.ex. EM, AM, Igun" />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Beskrivning</label>
+                        <input class="input" @bind="_form.Beskrivning" @bind:event="oninput" />
+                    </div>
+                    <div class="form-group" style="flex:1;display:flex;flex-direction:column">
+                        <label class="form-label">SQL (separera batchar med GO)</label>
+                        <textarea class="debug-sql-editor" style="flex:1;min-height:300px;resize:vertical"
+                                  @bind="_form.Sql" @bind:event="oninput" spellcheck="false" />
+                    </div>
+                </div>
+            }
+            else if (_selected is not null)
+            {
+                <!-- View + run selected case -->
+                <div class="testfall-form-header">
+                    <div>
+                        <span style="font-weight:600;color:var(--blue)">#@_selected.DataSetId</span>
+                        @if (!string.IsNullOrEmpty(_selected.Tag))
+                        {
+                            <span class="testfall-tag" style="margin-left:6px">@_selected.Tag</span>
+                        }
+                        <div style="font-size:12px;margin-top:2px">@_selected.Beskrivning</div>
+                    </div>
+                    <div style="display:flex;gap:6px;align-items:center">
+                        <button class="btn sm primary" @onclick="() => RunOne(_selected)"
+                                disabled="@_busy">▶ Kör</button>
+                        <button class="btn sm" @onclick="EditSelected">✎ Redigera</button>
+                        <button class="btn sm danger" @onclick="DeleteSelected">🗑</button>
+                    </div>
+                </div>
+                <div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+                    <pre class="build-log" style="flex:1;border-radius:0;font-size:11px">@_selected.Sql</pre>
+                </div>
+            }
+            else
+            {
+                <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:12px">
+                    Välj ett testfall i listan eller klicka + Nytt
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- ── Status log ── -->
+    @if (_log.Count > 0)
+    {
+        <div class="status-bar">
+            <div class="status-bar-header">
+                <span class="status-bar-title">
+                    @if (_busy) { <span class="status-spinner">⟳</span> }
+                    Körning
+                </span>
+                <button class="btn sm" @onclick="() => _log.Clear()">✕</button>
+            </div>
+            <div class="status-bar-log" id="testfall-log">
+                @foreach (var line in _log)
+                {
+                    <div style="color:@LogColor(line)">@line</div>
+                }
+            </div>
+        </div>
+    }
+
+</div>
+
+@code {
+    private string         _filter   = "";
+    private HashSet<int>   _checked  = [];
+    private TestCase?      _selected;
+    private bool           _editMode;
+    private bool           _isNew;
+    private bool           _busy;
+    private TestCase       _form     = new();
+    private List<string>   _log      = [];
+    private readonly CancellationTokenSource _cts = new();
+
+    private IEnumerable<TestCase> Filtered => Svc.Cases
+        .Where(tc => string.IsNullOrEmpty(_filter)
+            || tc.Beskrivning.Contains(_filter, StringComparison.OrdinalIgnoreCase)
+            || tc.Tag.Contains(_filter, StringComparison.OrdinalIgnoreCase)
+            || tc.DataSetId.ToString().Contains(_filter))
+        .OrderBy(tc => tc.DataSetId);
+
+    protected override void OnInitialized() => Svc.Load();
+
+    public async ValueTask DisposeAsync() { _cts.Cancel(); await Task.CompletedTask; }
+
+    // ── Selection ──────────────────────────────────────────────────────────────
+
+    private void Select(TestCase tc)
+    {
+        if (_editMode) return;
+        _selected = _selected == tc ? null : tc;
+    }
+
+    private void Toggle(int id, bool on)
+    {
+        if (on) _checked.Add(id); else _checked.Remove(id);
+    }
+
+    private void CheckAll()  => _checked = Filtered.Select(tc => tc.DataSetId).ToHashSet();
+    private void ClearChecked() => _checked.Clear();
+
+    // ── Edit ───────────────────────────────────────────────────────────────────
+
+    private void StartNew()
+    {
+        _form     = new TestCase();
+        _isNew    = true;
+        _editMode = true;
+        _selected = null;
+    }
+
+    private void EditSelected()
+    {
+        if (_selected is null) return;
+        _form     = new TestCase { DataSetId = _selected.DataSetId, Beskrivning = _selected.Beskrivning, Tag = _selected.Tag, Sql = _selected.Sql };
+        _isNew    = false;
+        _editMode = true;
+    }
+
+    private void SaveForm()
+    {
+        if (_isNew)
+            Svc.Add(_form);
+        else if (_selected is not null)
+        {
+            Svc.Replace(_selected, _form);
+            _selected = _form;
+        }
+        _editMode = false;
+    }
+
+    private void CancelEdit() => _editMode = false;
+
+    private void DeleteSelected()
+    {
+        if (_selected is null) return;
+        Svc.Remove(_selected);
+        _checked.Remove(_selected.DataSetId);
+        _selected = null;
+    }
+
+    // ── Run ────────────────────────────────────────────────────────────────────
+
+    private async Task RunOne(TestCase tc)  => await Execute([tc]);
+    private async Task RunSelected()        => await Execute(Filtered.Where(tc => _checked.Contains(tc.DataSetId)).ToList());
+
+    private async Task Execute(IList<TestCase> cases)
+    {
+        _log.Clear();
+        _busy = true;
+        Log($"──── Injicerar {cases.Count} testfall ────");
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            await Svc.RunAsync(cases, Settings.Settings.SqlConnectionString,
+                msg => _ = LogAsync(msg), _cts.Token);
+            Log("──── Klar ─────────────────────────────");
+        }
+        catch (OperationCanceledException) { Log("  Avbruten"); }
+        catch (Exception ex)               { Log($"  FEL: {ex.Message}"); }
+
+        _busy = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void Log(string msg)
+    {
+        _log.Add(msg);
+        if (_log.Count > 500) _log.RemoveAt(0);
+    }
+
+    private async Task LogAsync(string msg)
+    {
+        await InvokeAsync(() => { Log(msg); StateHasChanged(); });
+        try { await JS.InvokeVoidAsync("scrollToBottom", "testfall-log", _cts.Token); } catch { }
+    }
+
+    private static string LogColor(string line)
+    {
+        if (line.StartsWith("────"))          return "var(--muted)";
+        if (line.Contains("FEL:"))            return "var(--red)";
+        if (line.Contains("OK"))              return "var(--green)";
+        return "var(--text)";
+    }
+
+    // ── Export ─────────────────────────────────────────────────────────────────
+
+    private async Task ExportSelected()
+    {
+        var cases = Filtered.Where(tc => _checked.Contains(tc.DataSetId)).ToList();
+        var sql   = Svc.ExportSql(cases);
+        try { await JS.InvokeVoidAsync("navigator.clipboard.writeText", sql); } catch { }
+        Log($"──── Exporterade {cases.Count} testfall till urklipp ────");
+    }
+}

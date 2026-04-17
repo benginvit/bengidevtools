@@ -263,201 +263,117 @@ body {
   tab-size: 2;
 }
 
-/* ─── Debug page ───────────────────────────────────────────────────────────── */
+/* ─── Testfall page ─────────────────────────────────────────────────────────── */
 
-.debug-page {
+.testfall-page {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 80px);
+  height: calc(100vh - 48px);
 }
 
-.debug-layout {
+.testfall-layout {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 320px 1fr;
   gap: 10px;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
-.debug-sidebar {
+.testfall-list {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 8px;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
+  padding: 4px 0;
 }
 
-.debug-script-group { margin-bottom: 10px; }
-
-.debug-group-label {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .1em;
-  color: var(--muted);
-  padding: 2px 4px 4px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
-}
-
-.debug-script-row {
+.testfall-row {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 6px;
-  border-radius: var(--radius);
+  gap: 6px;
+  padding: 5px 8px;
   cursor: pointer;
   font-size: 12px;
+  border-radius: 0;
 }
-.debug-script-row:hover { background: var(--hover); }
-.debug-script-row.selected { background: var(--active); }
+.testfall-row:hover             { background: var(--hover); }
+.testfall-row.testfall-row-selected { background: var(--active); }
 
-.debug-script-name {
+.testfall-id {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--blue);
+  flex-shrink: 0;
+  min-width: 46px;
+}
+
+.testfall-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--muted);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.testfall-name {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.debug-delete-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 10px;
-  padding: 1px 3px;
-  border-radius: 2px;
-  opacity: 0;
-  flex-shrink: 0;
-}
-.debug-script-row:hover .debug-delete-btn { opacity: 1; }
-.debug-delete-btn:hover { background: var(--red); color: #fff; opacity: 1; }
-
-.debug-run-btn {
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 10px;
-  padding: 1px 4px;
-  border-radius: 2px;
-  opacity: 0;
-  flex-shrink: 0;
-}
-.debug-script-row:hover .debug-run-btn { opacity: 1; }
-.debug-run-btn:hover { background: var(--green); color: #fff; opacity: 1; }
-
-.debug-editor-panel {
+.testfall-editor {
   display: flex;
   flex-direction: column;
-  min-height: 0;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
+  min-height: 0;
 }
 
-.debug-editor-toolbar {
+.testfall-form-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 10px;
+  padding: 8px 12px;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-}
-
-.debug-sql-editor {
-  flex: 1;
-  background: var(--bg);
-  color: var(--text);
-  border: none;
-  padding: 10px 12px;
-  font-family: var(--mono);
-  font-size: 13px;
-  line-height: 1.5;
-  resize: none;
-  outline: none;
-  tab-size: 2;
-  min-height: 160px;
-}
-
-.sql-result {
-  border-top: 1px solid var(--border);
-  padding: 8px 12px;
   font-size: 12px;
-  max-height: 280px;
-  overflow-y: auto;
-  flex-shrink: 0;
-  background: var(--bg);
-}
-.sql-result.error { border-top-color: var(--red); }
-
-.sql-result-info { color: var(--muted); margin-bottom: 6px; }
-
-.sql-result-table-wrap { overflow-x: auto; margin-bottom: 8px; }
-
-.sql-table {
-  border-collapse: collapse;
-  font-size: 11px;
-  font-family: var(--mono);
-  white-space: nowrap;
-}
-.sql-table th {
-  background: var(--panel);
-  padding: 3px 8px;
-  border: 1px solid var(--border);
-  text-align: left;
-  font-weight: 600;
-}
-.sql-table td {
-  padding: 2px 8px;
-  border: 1px solid var(--border);
-  color: var(--text);
-}
-.sql-table tr:hover td { background: var(--hover); }
-
-.sql-result-body {
-  font-family: var(--mono);
-  font-size: 12px;
-  white-space: pre-wrap;
-  word-break: break-all;
-  margin: 0;
-  color: var(--text);
 }
 
-/* Scenario form */
-.scenario-form {
+.testfall-form-body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   padding: 12px;
   overflow-y: auto;
   flex: 1;
 }
 
-.scenario-row {
+.form-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
-.debug-method-badge {
-  font-size: 10px;
-  font-weight: 700;
+.debug-sql-editor {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
   font-family: var(--mono);
-  padding: 1px 4px;
-  border-radius: 3px;
-  background: var(--hover);
-  color: var(--muted);
-  flex-shrink: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  outline: none;
+  tab-size: 2;
+  width: 100%;
 }
-.debug-method-badge[data-method="GET"]    { color: var(--green); }
-.debug-method-badge[data-method="POST"]   { color: var(--blue); }
-.debug-method-badge[data-method="PUT"]    { color: var(--yellow); }
-.debug-method-badge[data-method="PATCH"]  { color: var(--yellow); }
-.debug-method-badge[data-method="DELETE"] { color: var(--red); }
 
 /* ─── Build page ───────────────────────────────────────────────────────────── */
 

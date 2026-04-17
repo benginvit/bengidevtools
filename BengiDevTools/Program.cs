@@ -9,6 +9,7 @@ builder.Services.AddSingleton<ISettingsService, SettingsService>();
 builder.Services.AddSingleton<IBuildService,    BuildService>();
 builder.Services.AddSingleton<IProcessService,  ProcessService>();
 builder.Services.AddSingleton<IGitService,      GitService>();
+builder.Services.AddSingleton<ITestCaseService, TestCaseService>();
 builder.Services.AddSingleton<AppScanService>();
 builder.Services.AddHostedService<GitScanBackgroundService>();
 
