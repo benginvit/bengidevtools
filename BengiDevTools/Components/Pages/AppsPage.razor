@@ -27,26 +27,9 @@
                 title="Uppdatera git-status">
             @(_gitLoading ? "⟳" : "⟳ Git")
         </button>
-        <button class="btn" @onclick="DoCheckoutAll"
-                disabled="@(_checkoutLoading || _gitLoading || _apps.Count == 0)"
-                title="Checkout develop (eller master/main) och pull på alla repon">
-            @(_checkoutLoading ? "⟳" : "⎇ Develop")
-        </button>
         <a class="btn" href="/api/apps/localuser/export" download="appsettings-localuser.zip"
            title="Exportera alla localuser-filer" style="text-decoration:none">↓ Exportera</a>
     </div>
-
-    @if (_checkoutLog.Count > 0)
-    {
-        <div style="font-family:var(--mono);font-size:11px;padding:4px 6px;margin-bottom:4px;background:var(--surface);border-radius:4px;max-height:110px;overflow-y:auto">
-            @foreach (var entry in _checkoutLog)
-            {
-                <div style="color:@(entry.Branch != string.Empty ? "var(--green)" : "var(--red)")">
-                    @entry.RepoName: @(entry.Branch != string.Empty ? entry.Branch : entry.Message)
-                </div>
-            }
-        </div>
-    }
 
     <div style="display:flex;align-items:center;gap:8px;padding:4px 0 8px;font-size:12px">
         <label class="cb">
@@ -221,11 +204,10 @@
     private List<AppViewModel>       _apps            = [];
     private bool                     _scanning;
     private bool                     _gitLoading;
-    private bool                     _checkoutLoading;
+
     private DateTime?                _lastScanned;
     private readonly HashSet<string> _busyIds         = [];
 
-    private readonly List<CheckoutEntry> _checkoutLog = [];
 
     // Per-app consoles (keyed by app.Id)
     private readonly Dictionary<string, ConsoleState> _consoles = new();
@@ -356,7 +338,10 @@
         _scanning    = false;
         await InvokeAsync(StateHasChanged);
 
-        // Git i samma flöde
+        // Checkout develop + pull
+        await DoCheckoutCore();
+
+        // Git status
         await DoGitRefreshCore();
         _statusBusy = false;
         await InvokeAsync(StateHasChanged);
@@ -405,11 +390,8 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task DoCheckoutAll()
+    private async Task DoCheckoutCore()
     {
-        _checkoutLoading = true;
-        _checkoutLog.Clear();
-        _statusBusy = true;
         StatusLog("──── Checkout develop / pull ────────────");
         await InvokeAsync(StateHasChanged);
 
@@ -422,7 +404,6 @@
             try
             {
                 var (branch, message) = await Git.CheckoutDefaultAndPullAsync(Path.Combine(root, repoName), _cts.Token);
-                _checkoutLog.Add(new CheckoutEntry(repoName, branch, message));
                 if (!string.IsNullOrEmpty(branch))
                     foreach (var app in _apps.Where(a => a.RepoName == repoName))
                         app.GitBranch = branch;
@@ -433,11 +414,7 @@
             finally { sem.Release(); }
         }));
 
-        _checkoutLoading = false;
-        StatusLog("──── Checkout klar, hämtar git-status ──");
-        await InvokeAsync(StateHasChanged);
-        await DoGitRefreshCore();
-        _statusBusy = false;
+        StatusLog("──── Checkout klar ──────────────────────");
         await InvokeAsync(StateHasChanged);
     }
 
@@ -617,5 +594,4 @@
         public void Dispose() => Cts.Cancel();
     }
 
-    private record CheckoutEntry(string RepoName, string Branch, string Message);
 }
