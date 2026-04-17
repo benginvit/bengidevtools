@@ -75,6 +75,11 @@ public class AppScanService
             return _cache = [];
         }
 
+        var excluded = _settings.Settings.ExcludedProjects
+            .Where(e => !string.IsNullOrWhiteSpace(e))
+            .Select(e => e.Trim())
+            .ToList();
+
         var repoDirs = Directory.GetDirectories(root).OrderBy(d => d).ToList();
         progress?.Invoke($"Hittade {repoDirs.Count} repon i {root}");
 
@@ -82,7 +87,12 @@ public class AppScanService
         foreach (var dir in repoDirs)
         {
             var repoName = Path.GetFileName(dir);
-            var apps = ScanRepo(dir).ToList();
+            if (IsExcluded(repoName, excluded))
+            {
+                progress?.Invoke($"  {repoName}  (exkluderad)");
+                continue;
+            }
+            var apps = ScanRepo(dir, excluded).ToList();
             progress?.Invoke(apps.Count > 0
                 ? $"  {repoName}  →  {apps.Count} projekt"
                 : $"  {repoName}  (inga körbara projekt)");
@@ -110,7 +120,10 @@ public class AppScanService
 
     private record ScanCacheFile(List<ScannedApp> Apps, DateTime? ScannedAt);
 
-    private static IEnumerable<ScannedApp> ScanRepo(string repoDir)
+    private static bool IsExcluded(string name, List<string> excluded) =>
+        excluded.Any(e => name.Contains(e, StringComparison.OrdinalIgnoreCase));
+
+    private static IEnumerable<ScannedApp> ScanRepo(string repoDir, List<string>? excluded = null)
     {
         var repoName = Path.GetFileName(repoDir);
 
@@ -119,7 +132,8 @@ public class AppScanService
             .OrderBy(f => f)
             .Select(csproj => TryBuildScannedApp(repoName, csproj))
             .Where(a => a is not null)
-            .Cast<ScannedApp>();
+            .Cast<ScannedApp>()
+            .Where(a => excluded is null || !IsExcluded(a.ProjectName, excluded));
     }
 
     private static ScannedApp? TryBuildScannedApp(string repoName, string csproj)
