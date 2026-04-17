@@ -1,3 +1,5 @@
 <Solution>
   <Project Path="BengiDevTools/BengiDevTools.csproj" />
+  <Project Path="BengiDevTools.AppHost/BengiDevTools.AppHost.csproj" />
+  <Project Path="BengiDevTools.ServiceDefaults/BengiDevTools.ServiceDefaults.csproj" />
 </Solution>
