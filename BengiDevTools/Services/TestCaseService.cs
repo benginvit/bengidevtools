@@ -57,38 +57,33 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
             bool ok = true;
             foreach (var batch in batches)
             {
-                var trimmed = batch.TrimStart();
-                bool isSelect = trimmed.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase)
-                             || trimmed.StartsWith("WITH",   StringComparison.OrdinalIgnoreCase);
                 try
                 {
-                    using var cmd = new SqlCommand(batch, conn) { CommandTimeout = 60 };
-                    if (isSelect)
+                    using var cmd    = new SqlCommand(batch, conn) { CommandTimeout = 60 };
+                    using var reader = await cmd.ExecuteReaderAsync(ct);
+                    bool anyResults  = false;
+                    do
                     {
-                        using var reader = await cmd.ExecuteReaderAsync(ct);
-                        do
+                        if (!reader.HasRows) continue;
+                        anyResults = true;
+                        var cols = Enumerable.Range(0, reader.FieldCount).Select(reader.GetName).ToList();
+                        var widths = cols.Select(c => Math.Max(c.Length, 6)).ToList();
+                        progress("  " + string.Join(" | ", cols.Select((c, i) => c.PadRight(widths[i]))));
+                        progress("  " + string.Join("-+-", widths.Select(w => new string('-', w))));
+                        int rowCount = 0;
+                        while (await reader.ReadAsync(ct) && rowCount < 200)
                         {
-                            if (!reader.HasRows) continue;
-                            var cols = Enumerable.Range(0, reader.FieldCount).Select(reader.GetName).ToList();
-                            progress("  " + string.Join(" | ", cols.Select(c => c.PadRight(Math.Min(c.Length + 2, 20)))));
-                            progress("  " + new string('-', Math.Min(cols.Count * 22, 80)));
-                            int rowCount = 0;
-                            while (await reader.ReadAsync(ct) && rowCount < 100)
-                            {
-                                var vals = Enumerable.Range(0, reader.FieldCount)
-                                    .Select(i => reader.IsDBNull(i) ? "NULL" : reader.GetValue(i)?.ToString() ?? "")
-                                    .Select(v => v.Length > 20 ? v[..17] + "…" : v.PadRight(20));
-                                progress("  " + string.Join(" | ", vals));
-                                rowCount++;
-                            }
-                            if (rowCount == 100) progress("  … (max 100 rader visas)");
-                        } while (await reader.NextResultAsync(ct));
-                    }
-                    else
-                    {
-                        var rows = await cmd.ExecuteNonQueryAsync(ct);
-                        if (rows > 0) totalRows += rows;
-                    }
+                            var vals = Enumerable.Range(0, reader.FieldCount)
+                                .Select(i => reader.IsDBNull(i) ? "NULL" : reader.GetValue(i)?.ToString() ?? "")
+                                .Select((v, i) => (v.Length > widths[i] ? v[..(widths[i] - 1)] + "…" : v).PadRight(widths[i]));
+                            progress("  " + string.Join(" | ", vals));
+                            rowCount++;
+                        }
+                        if (rowCount == 200) progress("  … (max 200 rader visas)");
+                    } while (await reader.NextResultAsync(ct));
+
+                    if (!anyResults && reader.RecordsAffected > 0)
+                        totalRows += reader.RecordsAffected;
                 }
                 catch (Exception ex)
                 {
