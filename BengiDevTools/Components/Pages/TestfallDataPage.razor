@@ -11,6 +11,18 @@
         <button class="btn primary" @onclick="StartNew">+ Ny rad</button>
         <button class="btn" @onclick="ExportCsv" title="Exportera som CSV">↓ Exportera CSV</button>
         <button class="btn" @onclick="() => _importOpen = !_importOpen">↑ Importera CSV</button>
+        @if (!_confirmClear)
+        {
+            <button class="btn danger" @onclick="() => _confirmClear = true">🗑 Rensa allt</button>
+        }
+        else
+        {
+            <span style="display:flex;gap:4px;align-items:center">
+                <span style="font-size:11px;color:var(--red)">Radera alla rader?</span>
+                <button class="btn sm danger" @onclick="DoClear">Ja, rensa</button>
+                <button class="btn sm" @onclick="() => _confirmClear = false">Avbryt</button>
+            </span>
+        }
         <span style="margin-left:auto;color:var(--muted);font-size:11px;align-self:center">
             @Filtered.Count() rader
         </span>
@@ -286,6 +298,7 @@
     private string       _importText = "";
     private string       _importMsg  = "";
     private bool         _fileLoading;
+    private bool         _confirmClear;
 
     private IEnumerable<TestDataRow> Filtered => Svc.Rows
         .Where(r => string.IsNullOrEmpty(_filter)
@@ -349,6 +362,14 @@
     }
 
     private void CancelImport() { _importOpen = false; _importText = ""; _importMsg = ""; }
+
+    private void DoClear()
+    {
+        Svc.Clear();
+        _selected     = null;
+        _editMode     = false;
+        _confirmClear = false;
+    }
 
     private async Task LoadFile(InputFileChangeEventArgs e)
     {

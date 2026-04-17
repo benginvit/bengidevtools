@@ -30,6 +30,7 @@ public class TestDataService(ISettingsService settings) : ITestDataService
     public void Add(TestDataRow row)                           { _rows.Add(row);            Save(); }
     public void Remove(TestDataRow row)                        { _rows.Remove(row);         Save(); }
     public void Replace(TestDataRow old, TestDataRow updated)  { var i = _rows.IndexOf(old); if (i >= 0) _rows[i] = updated; Save(); }
+    public void Clear()                                        { _rows.Clear();             Save(); }
 
     public string GenerateSql(IEnumerable<int> dataSetIds)
     {
@@ -146,19 +147,40 @@ public class TestDataService(ISettingsService settings) : ITestDataService
         return sb.ToString();
     }
 
+    // Maps alternative column names (from the original SQL schema) to our field names
+    private static readonly Dictionary<string, string> ColAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["InbetalningsspecifikationReferenceId"] = "InbetalningsspecifikationReferens",
+        ["FordranReferenceId"]                   = "FordranReferens",
+        // columns in source that we simply ignore (no matching field)
+        ["SubjektVarde"]       = "",
+        ["SubjektAttributtyp"] = "",
+        ["SubjektDatatyp"]     = "",
+        ["Ursprungsvaluta"]    = "",
+    };
+
     public List<TestDataRow> ImportCsv(string csv)
     {
         var result = new List<TestDataRow>();
         var lines  = csv.ReplaceLineEndings("\n").Split('\n', StringSplitOptions.RemoveEmptyEntries);
         if (lines.Length < 2) return result;
 
-        var headers = ParseCsvLine(lines[0]);
-        var idx     = headers.Select((h, i) => (h, i)).ToDictionary(x => x.h, x => x.i, StringComparer.OrdinalIgnoreCase);
+        // Auto-detect separator: count commas vs semicolons in header line
+        var sep = lines[0].Count(c => c == ',') > lines[0].Count(c => c == ';') ? ',' : ';';
+
+        var rawHeaders = ParseCsvLine(lines[0], sep);
+        var headers    = rawHeaders.Select(h => ColAliases.TryGetValue(h, out var alias) ? alias : h).ToList();
+        var idx        = headers.Select((h, i) => (h, i)).ToDictionary(x => x.h, x => x.i, StringComparer.OrdinalIgnoreCase);
 
         for (int li = 1; li < lines.Length; li++)
         {
-            var cols = ParseCsvLine(lines[li]);
-            string Get(string key) => idx.TryGetValue(key, out var i) && i < cols.Count ? cols[i] : "";
+            var cols = ParseCsvLine(lines[li], sep);
+            string Get(string key)
+            {
+                if (!idx.TryGetValue(key, out var i) || i >= cols.Count) return "";
+                var v = cols[i];
+                return string.Equals(v, "NULL", StringComparison.OrdinalIgnoreCase) ? "" : v;
+            }
             result.Add(new TestDataRow
             {
                 DataSetId                         = int.TryParse(Get("DataSetId"), out var id) ? id : 0,
@@ -221,7 +243,7 @@ public class TestDataService(ISettingsService settings) : ITestDataService
         return v;
     }
 
-    private static List<string> ParseCsvLine(string line)
+    private static List<string> ParseCsvLine(string line, char sep = ';')
     {
         var result = new List<string>();
         var sb     = new StringBuilder();
@@ -238,7 +260,7 @@ public class TestDataService(ISettingsService settings) : ITestDataService
             else
             {
                 if (c == '"') inQ = true;
-                else if (c == ';') { result.Add(sb.ToString()); sb.Clear(); }
+                else if (c == sep) { result.Add(sb.ToString()); sb.Clear(); }
                 else sb.Append(c);
             }
         }
