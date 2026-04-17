@@ -170,7 +170,12 @@ public class TestDataService(ISettingsService settings) : ITestDataService
 
         var rawHeaders = ParseCsvLine(lines[0], sep);
         var headers    = rawHeaders.Select(h => ColAliases.TryGetValue(h, out var alias) ? alias : h).ToList();
-        var idx        = headers.Select((h, i) => (h, i)).ToDictionary(x => x.h, x => x.i, StringComparer.OrdinalIgnoreCase);
+        // Skip ignored columns (aliased to "") and keep first occurrence of duplicates
+        var idx = headers
+            .Select((h, i) => (h, i))
+            .Where(x => !string.IsNullOrEmpty(x.h))
+            .GroupBy(x => x.h, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().i, StringComparer.OrdinalIgnoreCase);
 
         for (int li = 1; li < lines.Length; li++)
         {
