@@ -57,11 +57,38 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
             bool ok = true;
             foreach (var batch in batches)
             {
+                var trimmed = batch.TrimStart();
+                bool isSelect = trimmed.StartsWith("SELECT", StringComparison.OrdinalIgnoreCase)
+                             || trimmed.StartsWith("WITH",   StringComparison.OrdinalIgnoreCase);
                 try
                 {
                     using var cmd = new SqlCommand(batch, conn) { CommandTimeout = 60 };
-                    var rows = await cmd.ExecuteNonQueryAsync(ct);
-                    if (rows > 0) totalRows += rows;
+                    if (isSelect)
+                    {
+                        using var reader = await cmd.ExecuteReaderAsync(ct);
+                        do
+                        {
+                            if (!reader.HasRows) continue;
+                            var cols = Enumerable.Range(0, reader.FieldCount).Select(reader.GetName).ToList();
+                            progress("  " + string.Join(" | ", cols.Select(c => c.PadRight(Math.Min(c.Length + 2, 20)))));
+                            progress("  " + new string('-', Math.Min(cols.Count * 22, 80)));
+                            int rowCount = 0;
+                            while (await reader.ReadAsync(ct) && rowCount < 100)
+                            {
+                                var vals = Enumerable.Range(0, reader.FieldCount)
+                                    .Select(i => reader.IsDBNull(i) ? "NULL" : reader.GetValue(i)?.ToString() ?? "")
+                                    .Select(v => v.Length > 20 ? v[..17] + "…" : v.PadRight(20));
+                                progress("  " + string.Join(" | ", vals));
+                                rowCount++;
+                            }
+                            if (rowCount == 100) progress("  … (max 100 rader visas)");
+                        } while (await reader.NextResultAsync(ct));
+                    }
+                    else
+                    {
+                        var rows = await cmd.ExecuteNonQueryAsync(ct);
+                        if (rows > 0) totalRows += rows;
+                    }
                 }
                 catch (Exception ex)
                 {
