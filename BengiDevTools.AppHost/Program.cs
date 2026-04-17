@@ -1,6 +1,9 @@
 using System.Text.Json;
 using Aspire.Hosting;
 
+// Resolve DCP and Dashboard paths from NuGet cache (normally done by Aspire SDK via MSBuild)
+SetAspirePaths();
+
 var builder = DistributedApplication.CreateBuilder(args);
 
 // ── Read BengiDevTools settings ──────────────────────────────────────────────
@@ -121,6 +124,32 @@ static string? GetLaunchProfile(string csproj)
 static string ToResourceName(string name) =>
     new string(name.Select(c => char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : '-').ToArray())
         .Trim('-');
+
+static void SetAspirePaths()
+{
+    var nuget = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages");
+
+    var dcpDir = Directory
+        .GetDirectories(Path.Combine(nuget, "aspire.hosting.orchestration.linux-x64"))
+        .OrderDescending().FirstOrDefault();
+    var dashDir = Directory
+        .GetDirectories(Path.Combine(nuget, "aspire.dashboard.sdk.linux-x64"))
+        .OrderDescending().FirstOrDefault();
+
+    if (dcpDir is not null)
+        Environment.SetEnvironmentVariable("DcpPublisher__CliPath",
+            Path.Combine(dcpDir, "tools", "dcp"));
+    if (dashDir is not null)
+        // Aspire expects path without .dll extension — it appends .dll itself
+        Environment.SetEnvironmentVariable("DcpPublisher__DashboardPath",
+            Path.Combine(dashDir, "tools", "Aspire.Dashboard"));
+
+    // Dashboard URL and OTLP endpoint (normally injected by Aspire SDK launch profile)
+    Environment.SetEnvironmentVariable("ASPNETCORE_URLS",                      "http://0.0.0.0:18888");
+    Environment.SetEnvironmentVariable("ASPIRE_DASHBOARD_OTLP_ENDPOINT_URL",   "http://0.0.0.0:18889");
+    Environment.SetEnvironmentVariable("DOTNET_DASHBOARD_OTLP_ENDPOINT_URL",   "http://0.0.0.0:18889");
+    Environment.SetEnvironmentVariable("ASPIRE_ALLOW_UNSECURED_TRANSPORT",     "true");
+}
 
 record SettingsDto(
     string RepoRootPath = @"C:\TFS\Repos",
