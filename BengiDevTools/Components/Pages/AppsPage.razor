@@ -245,7 +245,10 @@
 
     private readonly CancellationTokenSource _cts = new();
 
-    private IEnumerable<string> _groups       => _apps.Select(a => a.RepoName).Distinct();
+    private IEnumerable<string> _groups => _apps
+        .Select(a => a.RepoName).Distinct()
+        .OrderBy(r => r.Contains("gateway", StringComparison.OrdinalIgnoreCase) ? 1 : 0)
+        .ThenBy(r => r);
     private int                 _checkedCount  => _apps.Count(a => a.Checked);
     private int                 _runningCount  => _apps.Count(a => a.IsRunning);
 
