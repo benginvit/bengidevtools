@@ -5,7 +5,7 @@ using Microsoft.Data.SqlClient;
 
 namespace BengiDevTools.Services;
 
-public class TestCaseService(ISettingsService settings) : ITestCaseService
+public class TestCaseService(ISettingsService settings, ITestDataService testData) : ITestCaseService
 {
     private static readonly JsonSerializerOptions JsonOpts = new() { WriteIndented = true };
     private List<TestCase> _cases = [];
@@ -42,7 +42,11 @@ public class TestCaseService(ISettingsService settings) : ITestCaseService
             ct.ThrowIfCancellationRequested();
             progress($"── #{tc.DataSetId}  {tc.Beskrivning}");
 
-            var batches = tc.Sql
+            var sqlPrefix = tc.DataRows.Count > 0
+                ? testData.GenerateSql(tc.DataRows) + "\n"
+                : "";
+
+            var batches = (sqlPrefix + tc.Sql)
                 .Split(["\nGO", "\r\nGO"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Where(b => !string.IsNullOrWhiteSpace(b))
                 .ToList();

@@ -1,0 +1,293 @@
+@page "/testfalldata"
+@inject ITestDataService Svc
+@inject IJSRuntime JS
+
+<div class="testfall-page">
+
+    <!-- ── Toolbar ── -->
+    <div class="apps-toolbar" style="margin-bottom:8px">
+        <input class="input" style="width:220px" placeholder="🔍 Sök..." @bind="_filter" @bind:event="oninput" />
+        <button class="btn primary" @onclick="StartNew">+ Ny rad</button>
+        <button class="btn" @onclick="ExportCsv" title="Exportera som CSV">↓ Exportera CSV</button>
+        <button class="btn" @onclick="() => _importOpen = !_importOpen">↑ Importera CSV</button>
+        <span style="margin-left:auto;color:var(--muted);font-size:11px;align-self:center">
+            @Filtered.Count() rader
+        </span>
+    </div>
+
+    @if (_importOpen)
+    {
+        <div style="margin-bottom:8px;display:flex;flex-direction:column;gap:6px">
+            <textarea class="debug-sql-editor" style="height:120px;resize:vertical"
+                      placeholder="Klistra in CSV här (semikolon-separerad, med rubrikrad)..."
+                      @bind="_importText" @bind:event="oninput" spellcheck="false" />
+            <div style="display:flex;gap:6px">
+                <button class="btn primary" @onclick="DoImport" disabled="@string.IsNullOrWhiteSpace(_importText)">Importera</button>
+                <button class="btn" @onclick="CancelImport">Avbryt</button>
+                @if (!string.IsNullOrEmpty(_importMsg))
+                {
+                    <span style="align-self:center;font-size:11px;color:var(--green)">@_importMsg</span>
+                }
+            </div>
+        </div>
+    }
+
+    <div class="testfall-layout">
+
+        <!-- ── Left: list ── -->
+        <div class="testfall-list">
+            @foreach (var row in Filtered)
+            {
+                var isSel = _selected == row;
+                <div class="testfall-row @(isSel ? "testfall-row-selected" : "")"
+                     @onclick="() => Select(row)">
+                    <span class="testfall-id">#@row.DataSetId</span>
+                    <span class="testfall-name">@row.Databeskrivning</span>
+                </div>
+            }
+            @if (!Filtered.Any())
+            {
+                <div style="padding:12px;color:var(--muted);font-size:12px">
+                    @(Svc.Rows.Count == 0 ? "Inga rader — klicka + Ny rad." : "Inga träffar.")
+                </div>
+            }
+        </div>
+
+        <!-- ── Right: editor ── -->
+        <div class="testfall-editor">
+            @if (_editMode && _form is not null)
+            {
+                <div class="testfall-form-header">
+                    <span style="font-weight:600;color:var(--blue)">@(_isNew ? "Ny testdatarad" : $"Redigera #{_form.DataSetId}")</span>
+                    <div style="display:flex;gap:6px">
+                        <button class="btn sm primary" @onclick="SaveForm">Spara</button>
+                        <button class="btn sm" @onclick="CancelEdit">Avbryt</button>
+                    </div>
+                </div>
+                <div class="testfall-form-body">
+                    <div class="form-row">
+                        <div class="form-group" style="width:120px">
+                            <label class="form-label">DataSetId</label>
+                            <input class="input" type="number" @bind="_form.DataSetId" />
+                        </div>
+                        <div class="form-group" style="flex:1">
+                            <label class="form-label">Databeskrivning</label>
+                            <input class="input" @bind="_form.Databeskrivning" @bind:event="oninput" />
+                        </div>
+                    </div>
+
+                    <div class="section-header">Subjekt</div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1"><label class="form-label">PersonId</label><input class="input" @bind="_form.PersonId" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1"><label class="form-label">PersonNr/OrgNr</label><input class="input" @bind="_form.SubjektPersonNrOrgNr" @bind:event="oninput" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:2"><label class="form-label">Namn</label><input class="input" @bind="_form.SubjektNamn" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1"><label class="form-label">Ursprung</label><input class="input" @bind="_form.SubjektUrsprung" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1"><label class="form-label">Typ</label><input class="input" @bind="_form.Subjekttyp" @bind:event="oninput" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:2"><label class="form-label">Adress</label><input class="input" @bind="_form.SubjektAdress" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1"><label class="form-label">C/O</label><input class="input" @bind="_form.SubjektCoAdress" @bind:event="oninput" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="width:100px"><label class="form-label">Postnr</label><input class="input" @bind="_form.SubjektPostnummer" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1"><label class="form-label">Ort</label><input class="input" @bind="_form.SubjektPostort" @bind:event="oninput" /></div>
+                        <div class="form-group" style="width:80px"><label class="form-label">Land</label><input class="input" @bind="_form.SubjektLand" @bind:event="oninput" /></div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Metadata (JSON)</label>
+                        <input class="input" @bind="_form.SubjektMetadata" @bind:event="oninput" />
+                    </div>
+
+                    <div class="section-header">Inbetalare</div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1"><label class="form-label">PersonNr/OrgNr</label><input class="input" @bind="_form.InbetalarePersonOrgNr" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:2"><label class="form-label">Namn</label><input class="input" @bind="_form.InbetalareNamn" @bind:event="oninput" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:2"><label class="form-label">Adress 1</label><input class="input" @bind="_form.InbetalareAdress1" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:2"><label class="form-label">Adress 2</label><input class="input" @bind="_form.InbetalareAdress2" @bind:event="oninput" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="width:100px"><label class="form-label">Postnr</label><input class="input" @bind="_form.InbetalarePostnummer" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1"><label class="form-label">Ort</label><input class="input" @bind="_form.InbetalareOrt" @bind:event="oninput" /></div>
+                        <div class="form-group" style="width:80px"><label class="form-label">Land</label><input class="input" @bind="_form.InbetalareLand" @bind:event="oninput" /></div>
+                    </div>
+
+                    <div class="section-header">Inbetalning / Fordran</div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1"><label class="form-label">Inbetalning Betalref</label><input class="input" @bind="_form.InbetalningBetalreferens" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1"><label class="form-label">Fordran Betalref</label><input class="input" @bind="_form.FordranBetalreferens" @bind:event="oninput" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1"><label class="form-label">Inbetalning Spec. Ref</label><input class="input" @bind="_form.InbetalningsspecifikationReferens" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1"><label class="form-label">Fordran Referens</label><input class="input" @bind="_form.FordranReferens" @bind:event="oninput" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1"><label class="form-label">Kanal</label><input class="input" @bind="_form.Inbetalningskanal" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1"><label class="form-label">Kontogrupp</label><input class="input" @bind="_form.InbetalningKontogrupp" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1"><label class="form-label">Uppbördsområde</label><input class="input" @bind="_form.FordranUppbordsomrade" @bind:event="oninput" /></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1"><label class="form-label">Inbetalning Belopp</label><input class="input" @bind="_form.InbetalningBelopp" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1"><label class="form-label">Fordran Saldo</label><input class="input" @bind="_form.FordranSaldo" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1"><label class="form-label">Fordran Grundbelopp</label><input class="input" @bind="_form.FordranGrundbelopp" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1"><label class="form-label">Fordran Status</label><input class="input" @bind="_form.FordranStatus" @bind:event="oninput" /></div>
+                    </div>
+
+                    <div class="section-header">Igun</div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1"><label class="form-label">Signal Post (JSON)</label><input class="input" @bind="_form.IgunSignalPost" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1"><label class="form-label">Signal Resultat (JSON)</label><input class="input" @bind="_form.IgunSignalResultat" @bind:event="oninput" /></div>
+                    </div>
+                </div>
+            }
+            else if (_selected is not null)
+            {
+                <div class="testfall-form-header">
+                    <div>
+                        <span style="font-weight:600;color:var(--blue)">#@_selected.DataSetId</span>
+                        <span style="margin-left:8px;font-size:12px">@_selected.Databeskrivning</span>
+                    </div>
+                    <div style="display:flex;gap:6px">
+                        <button class="btn sm primary" @onclick="EditSelected">✎ Redigera</button>
+                        <button class="btn sm" @onclick="CopySql" title="Kopiera DECLARE+INSERT till urklipp">↓ Kopiera SQL</button>
+                        <button class="btn sm danger" @onclick="DeleteSelected">🗑</button>
+                    </div>
+                </div>
+                <div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+                    <pre class="build-log" style="flex:1;border-radius:0;font-size:11px">@PreviewSql(_selected)</pre>
+                </div>
+            }
+            else
+            {
+                <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:12px">
+                    Välj en rad i listan eller klicka + Ny rad
+                </div>
+            }
+        </div>
+    </div>
+
+</div>
+
+@code {
+    private string       _filter     = "";
+    private TestDataRow? _selected;
+    private bool         _editMode;
+    private bool         _isNew;
+    private TestDataRow? _form;
+    private bool         _importOpen;
+    private string       _importText = "";
+    private string       _importMsg  = "";
+
+    private IEnumerable<TestDataRow> Filtered => Svc.Rows
+        .Where(r => string.IsNullOrEmpty(_filter)
+            || r.DataSetId.ToString().Contains(_filter)
+            || r.Databeskrivning.Contains(_filter, StringComparison.OrdinalIgnoreCase)
+            || r.SubjektNamn.Contains(_filter, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(r => r.DataSetId);
+
+    protected override void OnInitialized() => Svc.Load();
+
+    private void Select(TestDataRow row)
+    {
+        if (_editMode) return;
+        _selected = _selected == row ? null : row;
+    }
+
+    private void StartNew()
+    {
+        _form     = new TestDataRow();
+        _isNew    = true;
+        _editMode = true;
+        _selected = null;
+    }
+
+    private void EditSelected()
+    {
+        if (_selected is null) return;
+        _form     = Clone(_selected);
+        _isNew    = false;
+        _editMode = true;
+    }
+
+    private void SaveForm()
+    {
+        if (_form is null) return;
+        if (_isNew) Svc.Add(_form);
+        else if (_selected is not null) { Svc.Replace(_selected, _form); _selected = _form; }
+        _editMode = false;
+    }
+
+    private void CancelEdit() => _editMode = false;
+
+    private void DeleteSelected()
+    {
+        if (_selected is null) return;
+        Svc.Remove(_selected);
+        _selected = null;
+    }
+
+    private async Task CopySql()
+    {
+        if (_selected is null) return;
+        var sql = Svc.GenerateSql([_selected.DataSetId]);
+        try { await JS.InvokeVoidAsync("navigator.clipboard.writeText", sql); } catch { }
+    }
+
+    private async Task ExportCsv()
+    {
+        var csv = Svc.ExportCsv(Svc.Rows);
+        try { await JS.InvokeVoidAsync("navigator.clipboard.writeText", csv); } catch { }
+    }
+
+    private void CancelImport() { _importOpen = false; _importText = ""; }
+
+    private void DoImport()
+    {
+        var imported = Svc.ImportCsv(_importText);
+        foreach (var r in imported) Svc.Add(r);
+        _importMsg  = $"Importerade {imported.Count} rader.";
+        _importText = "";
+    }
+
+    private string PreviewSql(TestDataRow row) => Svc.GenerateSql([row.DataSetId]);
+
+    private static TestDataRow Clone(TestDataRow r) => new()
+    {
+        DataSetId                         = r.DataSetId,
+        Databeskrivning                   = r.Databeskrivning,
+        PersonId                          = r.PersonId,
+        SubjektPersonNrOrgNr              = r.SubjektPersonNrOrgNr,
+        SubjektNamn                       = r.SubjektNamn,
+        SubjektAdress                     = r.SubjektAdress,
+        SubjektCoAdress                   = r.SubjektCoAdress,
+        SubjektPostnummer                 = r.SubjektPostnummer,
+        SubjektPostort                    = r.SubjektPostort,
+        SubjektLand                       = r.SubjektLand,
+        SubjektUrsprung                   = r.SubjektUrsprung,
+        Subjekttyp                        = r.Subjekttyp,
+        SubjektMetadata                   = r.SubjektMetadata,
+        InbetalarePersonOrgNr             = r.InbetalarePersonOrgNr,
+        InbetalareNamn                    = r.InbetalareNamn,
+        InbetalareAdress1                 = r.InbetalareAdress1,
+        InbetalareAdress2                 = r.InbetalareAdress2,
+        InbetalarePostnummer              = r.InbetalarePostnummer,
+        InbetalareOrt                     = r.InbetalareOrt,
+        InbetalareLand                    = r.InbetalareLand,
+        InbetalningsspecifikationReferens = r.InbetalningsspecifikationReferens,
+        FordranReferens                   = r.FordranReferens,
+        InbetalningBetalreferens          = r.InbetalningBetalreferens,
+        FordranBetalreferens              = r.FordranBetalreferens,
+        Inbetalningskanal                 = r.Inbetalningskanal,
+        FordranUppbordsomrade             = r.FordranUppbordsomrade,
+        InbetalningKontogrupp             = r.InbetalningKontogrupp,
+        FordranSaldo                      = r.FordranSaldo,
+        FordranGrundbelopp               = r.FordranGrundbelopp,
+        InbetalningBelopp                 = r.InbetalningBelopp,
+        FordranStatus                     = r.FordranStatus,
+        IgunSignalPost                    = r.IgunSignalPost,
+        IgunSignalResultat                = r.IgunSignalResultat,
+    };
+}

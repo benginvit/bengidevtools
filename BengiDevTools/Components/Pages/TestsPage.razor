@@ -1,5 +1,6 @@
 @page "/testfall"
 @inject ITestCaseService Svc
+@inject ITestDataService DataSvc
 @inject ISettingsService Settings
 @inject IJSRuntime JS
 @implements IAsyncDisposable
@@ -81,6 +82,24 @@
                         <label class="form-label">Beskrivning</label>
                         <input class="input" @bind="_form.Beskrivning" @bind:event="oninput" />
                     </div>
+                    @if (DataSvc.Rows.Count > 0)
+                    {
+                        <div class="form-group">
+                            <label class="form-label">Testfalldata (@@TestDataMPM-rader)</label>
+                            <div style="display:flex;flex-wrap:wrap;gap:4px;padding:6px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius)">
+                                @foreach (var row in DataSvc.Rows.OrderBy(r => r.DataSetId))
+                                {
+                                    var isChecked = _form.DataRows.Contains(row.DataSetId);
+                                    <label class="cb" style="min-width:140px;font-size:11px">
+                                        <input type="checkbox" checked="@isChecked"
+                                               @onchange="e => ToggleDataRow(row.DataSetId, (bool)(e.Value ?? false))" />
+                                        <span style="color:var(--blue)">#@row.DataSetId</span>
+                                        <span style="color:var(--muted)">@row.Databeskrivning</span>
+                                    </label>
+                                }
+                            </div>
+                        </div>
+                    }
                     <div class="form-group" style="flex:1;display:flex;flex-direction:column">
                         <label class="form-label">SQL (separera batchar med GO)</label>
                         <textarea class="debug-sql-editor" style="flex:1;min-height:300px;resize:vertical"
@@ -160,7 +179,7 @@
             || tc.DataSetId.ToString().Contains(_filter))
         .OrderBy(tc => tc.DataSetId);
 
-    protected override void OnInitialized() => Svc.Load();
+    protected override void OnInitialized() { Svc.Load(); DataSvc.Load(); }
 
     public async ValueTask DisposeAsync() { _cts.Cancel(); await Task.CompletedTask; }
 
@@ -175,6 +194,13 @@
     private void Toggle(int id, bool on)
     {
         if (on) _checked.Add(id); else _checked.Remove(id);
+    }
+
+    private void ToggleDataRow(int id, bool on)
+    {
+        if (_form is null) return;
+        if (on) { if (!_form.DataRows.Contains(id)) _form.DataRows.Add(id); }
+        else _form.DataRows.Remove(id);
     }
 
     private void CheckAll()  => _checked = Filtered.Select(tc => tc.DataSetId).ToHashSet();
@@ -193,7 +219,7 @@
     private void EditSelected()
     {
         if (_selected is null) return;
-        _form     = new TestCase { DataSetId = _selected.DataSetId, Beskrivning = _selected.Beskrivning, Tag = _selected.Tag, Sql = _selected.Sql };
+        _form     = new TestCase { DataSetId = _selected.DataSetId, Beskrivning = _selected.Beskrivning, Tag = _selected.Tag, Sql = _selected.Sql, DataRows = [.._selected.DataRows] };
         _isNew    = false;
         _editMode = true;
     }
