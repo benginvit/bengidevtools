@@ -62,6 +62,28 @@ public partial class ProcessService : IProcessService
             : GetChildPidLinux(parentPid);
     }
 
+    private static void KillProcessTreeLinux(int pid)
+    {
+        // Recursively kill all descendants, then the process itself
+        try
+        {
+            var psi = new ProcessStartInfo("/bin/bash", $"-c \"pgrep -P {pid} 2>/dev/null\"")
+            {
+                UseShellExecute = false, CreateNoWindow = true,
+                RedirectStandardOutput = true, RedirectStandardError = true,
+            };
+            using var p = Process.Start(psi);
+            if (p is null) return;
+            var output = p.StandardOutput.ReadToEnd().Trim();
+            p.WaitForExit(500);
+            foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                if (int.TryParse(line.Trim(), out var childPid))
+                    KillProcessTreeLinux(childPid);
+        }
+        catch { }
+        try { Process.GetProcessById(pid).Kill(); } catch { }
+    }
+
     private static int GetChildPidLinux(int parentPid)
     {
         try
@@ -305,7 +327,19 @@ public partial class ProcessService : IProcessService
         }
 
         if (!_processes.TryGetValue(id, out var proc)) return;
-        try { proc.Kill(entireProcessTree: true); await proc.WaitForExitAsync(); } catch { }
+
+        // On Linux, dotnet run spawns the app as a child — kill it explicitly first
+        if (OperatingSystem.IsLinux())
+        {
+            try
+            {
+                KillProcessTreeLinux(proc.Id);
+                await Task.Delay(200);
+            }
+            catch { }
+        }
+
+        try { proc.Kill(entireProcessTree: true); await proc.WaitForExitAsync(TimeSpan.FromSeconds(5)); } catch { }
         _processes.Remove(id);
     }
 
