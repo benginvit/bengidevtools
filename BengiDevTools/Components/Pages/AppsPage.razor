@@ -90,7 +90,11 @@
                         <div class="app-dot @dotClass" title="@dotTitle"
                              @onclick:stopPropagation @onclick="() => CopyPid(app)"></div>
                         <span class="app-name">@app.ProjectName</span>
-                        <span class="app-port">@(app.HttpsPort.HasValue ? ":" + app.HttpsPort : string.Empty)</span>
+                        <span class="app-port"
+                              style="@(app.HttpsPort.HasValue && app.IsRunning ? "cursor:pointer;color:var(--blue)" : "")"
+                              title="@(app.HttpsPort.HasValue && app.IsRunning ? $"Öppna https://localhost:{app.HttpsPort}" : "")"
+                              @onclick:stopPropagation
+                              @onclick="() => OpenPort(app)">@(app.HttpsPort.HasValue ? ":" + app.HttpsPort : string.Empty)</span>
                         <div class="app-actions" @onclick:stopPropagation>
                             <button class="btn sm"
                                     title="@(app.HasLocalUser ? "Redigera appsettings.localuser.json" : "Skapa appsettings.localuser.json")"
@@ -534,6 +538,12 @@
     }
 
     // ── PID copy ───────────────────────────────────────────────────────────────
+
+    private async Task OpenPort(AppViewModel app)
+    {
+        if (!app.HttpsPort.HasValue || !app.IsRunning) return;
+        await JS.InvokeVoidAsync("open", $"https://localhost:{app.HttpsPort}/swagger", "_blank");
+    }
 
     private async Task CopyPid(AppViewModel app)
     {
