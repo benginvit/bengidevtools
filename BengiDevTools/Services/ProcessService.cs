@@ -339,7 +339,13 @@ public partial class ProcessService : IProcessService
             catch { }
         }
 
-        try { proc.Kill(entireProcessTree: true); await proc.WaitForExitAsync(TimeSpan.FromSeconds(5)); } catch { }
+        try
+        {
+            proc.Kill(entireProcessTree: true);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await proc.WaitForExitAsync(cts.Token);
+        }
+        catch { }
         _processes.Remove(id);
     }
 
