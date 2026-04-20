@@ -184,8 +184,7 @@ body {
 }
 
 .app-row {
-  display: grid;
-  grid-template-columns: 14px 10px 1fr 52px 96px;
+  display: flex;
   align-items: center;
   gap: 6px;
   padding: 3px 6px;
@@ -210,10 +209,10 @@ body {
   50%       { box-shadow: 0 0 8px var(--red); opacity: .7; }
 }
 
-.app-name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.app-port { color: var(--muted); font-size: 10px; text-align: right; white-space: nowrap; }
+.app-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.app-port { color: var(--muted); font-size: 10px; white-space: nowrap; flex-shrink: 0; }
 
-.app-actions { display: flex; gap: 3px; justify-content: flex-end; align-items: center; }
+.app-actions { display: flex; gap: 3px; align-items: center; flex-shrink: 0; }
 
 /* ─── LocalUser modal ──────────────────────────────────────────────────────── */
 
