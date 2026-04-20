@@ -184,11 +184,9 @@ body {
 }
 
 .app-row {
-  display: grid;
-  grid-template-columns: 13px 8px auto auto auto;
-  justify-content: start;
+  display: flex;
   align-items: center;
-  column-gap: 10px;
+  gap: 8px;
   padding: 3px 6px;
   font-size: 11px;
   border-radius: var(--radius);
@@ -211,7 +209,7 @@ body {
   50%       { box-shadow: 0 0 8px var(--red); opacity: .7; }
 }
 
-.app-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.app-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 200px; flex-shrink: 0; }
 .app-port { color: var(--muted); font-size: 10px; white-space: nowrap; flex-shrink: 0; }
 
 .app-actions { display: flex; gap: 3px; align-items: center; flex-shrink: 0; }
