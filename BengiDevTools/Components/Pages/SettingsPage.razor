@@ -5,11 +5,6 @@
     <div class="section-header">Inställningar</div>
 
     <div class="form-group">
-        <label class="form-label">Repo-rot</label>
-        <input class="input" @bind="_repoRoot" />
-    </div>
-
-    <div class="form-group">
         <label class="form-label">SQL-anslutningssträng</label>
         <input class="input" @bind="_sqlConn" />
     </div>
@@ -17,12 +12,6 @@
     <div class="form-group">
         <label class="form-label">Debug-skript-sökväg</label>
         <input class="input" @bind="_scriptsPath" />
-    </div>
-
-    <div class="form-group">
-        <label class="form-label">Exkludera från scan (ett per rad — matchas mot repo- eller projektnamn)</label>
-        <textarea class="input" rows="5" style="resize:vertical;font-family:var(--mono);font-size:12px"
-                  @bind="_excluded" @bind:event="oninput" spellcheck="false" />
     </div>
 
     <div style="display:flex;gap:8px;align-items:center">
@@ -35,28 +24,20 @@
 </div>
 
 @code {
-    private string _repoRoot    = "";
     private string _sqlConn     = "";
     private string _scriptsPath = "";
-    private string _excluded    = "";
     private bool   _saved;
 
     protected override void OnInitialized()
     {
-        _repoRoot    = Settings.Settings.RepoRootPath;
         _sqlConn     = Settings.Settings.SqlConnectionString;
         _scriptsPath = Settings.Settings.DebugScriptsPath;
-        _excluded    = string.Join("\n", Settings.Settings.ExcludedProjects);
     }
 
     private void Save()
     {
-        Settings.Settings.RepoRootPath        = _repoRoot;
         Settings.Settings.SqlConnectionString = _sqlConn;
         Settings.Settings.DebugScriptsPath    = _scriptsPath;
-        Settings.Settings.ExcludedProjects    = _excluded
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .ToList();
         Settings.Save();
         _saved = true;
         _ = Task.Run(async () =>
