@@ -470,7 +470,13 @@
     {
         _busyIds.Add(app.Id);
         try { await Proc.StopAsync(app.Id); }
-        finally { _busyIds.Remove(app.Id); }
+        finally
+        {
+            _busyIds.Remove(app.Id);
+            ClearConsole(app.Id);
+            _statusLog.Clear();
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task AppRestart(AppViewModel app)
