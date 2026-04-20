@@ -204,8 +204,14 @@ body {
 }
 .app-dot.running   { background: var(--green); box-shadow: 0 0 4px var(--green); }
 .app-dot.stopped   { background: #555; }
+.app-dot.starting  { background: var(--yellow); animation: pulse-starting .8s ease-in-out infinite; }
 .app-dot.external  { background: var(--yellow); box-shadow: 0 0 4px var(--yellow); }
 .app-dot.exception { background: var(--red); animation: pulse-exception 1.2s ease-in-out infinite; }
+
+@keyframes pulse-starting {
+  0%, 100% { box-shadow: 0 0 2px var(--yellow); opacity: 1; }
+  50%       { box-shadow: 0 0 8px var(--yellow); opacity: .5; }
+}
 
 @keyframes pulse-exception {
   0%, 100% { box-shadow: 0 0 3px var(--red); }

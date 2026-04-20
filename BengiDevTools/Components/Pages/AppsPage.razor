@@ -72,11 +72,12 @@
 
                 @foreach (var app in repoApps)
                 {
-                    var dotClass   = app.HasException ? "exception" : app.IsExternal ? "external" : app.IsRunning ? "running" : "stopped";
-                    var dotTitle   = app.HasException ? "Exception!" :
+                    var isBusy     = _busyIds.Contains(app.Id);
+                    var dotClass   = isBusy ? "starting" : app.HasException ? "exception" : app.IsExternal ? "external" : app.IsRunning ? "running" : "stopped";
+                    var dotTitle   = isBusy          ? "Startar…" :
+                                     app.HasException ? "Exception!" :
                                      app.IsExternal   ? "Externt startad" :
                                      app.IsRunning    ? $"PID {app.Pid} — klicka för att kopiera" : "Stoppad";
-                    var isBusy     = _busyIds.Contains(app.Id);
                     var isExpanded = _consoles.ContainsKey(app.Id);
                     var consoleId  = "con-" + app.Id.Replace('/', '-');
 
@@ -95,14 +96,18 @@
                                     title="@(app.HasLocalUser ? "Redigera appsettings.localuser.json" : "Skapa appsettings.localuser.json")"
                                     style="opacity:@(app.HasLocalUser ? "1" : "0.4")"
                                     @onclick="() => OpenLocalUser(app.Id)">⚙</button>
-                            @if (!app.IsRunning)
+                            @if (isBusy)
                             {
-                                <button class="btn sm" disabled="@isBusy" @onclick="() => AppStart(app)">▶</button>
+                                <button class="btn sm primary" disabled><span class="status-spinner">⟳</span></button>
+                            }
+                            else if (!app.IsRunning)
+                            {
+                                <button class="btn sm" @onclick="() => AppStart(app)">▶</button>
                             }
                             else
                             {
-                                <button class="btn sm" disabled="@isBusy" @onclick="() => AppRestart(app)">⟳</button>
-                                <button class="btn sm danger" disabled="@isBusy" @onclick="() => AppStop(app)">■</button>
+                                <button class="btn sm" @onclick="() => AppRestart(app)">⟳</button>
+                                <button class="btn sm danger" @onclick="() => AppStop(app)">■</button>
                             }
                         </div>
                     </div>
