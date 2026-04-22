@@ -270,6 +270,7 @@ public partial class ProcessService : IProcessService
         var projectDir = Path.GetDirectoryName(csprojPath);
 
         FreeOccupiedPorts(projectDir, launchProfile);
+        FreeHealthCheckPort(projectDir);
 
         var args = $"run --no-build --project \"{csprojPath}\"";
         if (launchProfile is not null) args += $" --launch-profile \"{launchProfile}\"";
@@ -286,6 +287,8 @@ public partial class ProcessService : IProcessService
 
         psi.Environment["ASPNETCORE_ENVIRONMENT"]          = "Development";
         psi.Environment["HealthChecksWebServer__Enabled"]  = "false";
+        // Don't inherit BengiDevTools' own ASPNETCORE_URLS (port 5050) into child processes
+        psi.Environment.Remove("ASPNETCORE_URLS");
 
         var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
         proc.Exited += (_, _) => _processes.Remove(id);
@@ -381,6 +384,28 @@ public partial class ProcessService : IProcessService
             }
         }
         catch { }
+    }
+
+    private static void FreeHealthCheckPort(string? projectDir)
+    {
+        if (projectDir is null) return;
+        foreach (var filename in new[] { "appsettings.Development.json", "appsettings.json" })
+        {
+            var path = Path.Combine(projectDir, filename);
+            if (!File.Exists(path)) continue;
+            try
+            {
+                using var doc = JsonDocument.Parse(File.ReadAllText(path));
+                if (doc.RootElement.TryGetProperty("HealthChecksWebServer", out var hc) &&
+                    hc.TryGetProperty("Port", out var portProp) &&
+                    portProp.TryGetInt32(out var port) && port > 0)
+                {
+                    KillPort(port);
+                    return;
+                }
+            }
+            catch { }
+        }
     }
 
     private static void KillPort(int port)
