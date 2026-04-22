@@ -285,8 +285,8 @@ public partial class ProcessService : IProcessService
             var envVars = ReadLaunchProfileEnv(projectDir, launchProfile);
             foreach (var (k, v) in envVars)
                 psi.Environment[k] = v;
-            if (!psi.Environment.ContainsKey("ASPNETCORE_ENVIRONMENT") &&
-                !psi.Environment.ContainsKey("DOTNET_ENVIRONMENT"))
+            // Default to Development unless launch profile explicitly set an environment
+            if (!envVars.ContainsKey("ASPNETCORE_ENVIRONMENT") && !envVars.ContainsKey("DOTNET_ENVIRONMENT"))
                 psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
         }
         else

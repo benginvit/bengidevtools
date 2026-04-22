@@ -207,7 +207,8 @@ public class AppScanService
         try
         {
             var content = File.ReadAllText(csproj);
-            return content.Contains("Microsoft.NET.Sdk.Web", StringComparison.OrdinalIgnoreCase)
+            return content.Contains("Microsoft.NET.Sdk.Web",    StringComparison.OrdinalIgnoreCase)
+                || content.Contains("Microsoft.NET.Sdk.Worker", StringComparison.OrdinalIgnoreCase)
                 || content.Contains("<OutputType>Exe</OutputType>", StringComparison.OrdinalIgnoreCase);
         }
         catch { return false; }
