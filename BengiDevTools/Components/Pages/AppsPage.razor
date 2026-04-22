@@ -440,17 +440,16 @@
     private async Task StartSelected()
     {
         var toStart = _apps.Where(a => a.Checked && !a.IsRunning).ToList();
-        for (int i = 0; i < toStart.Count; i++)
-        {
-            var app = toStart[i];
+        foreach (var app in toStart)
             _busyIds.Add(app.Id);
-            await InvokeAsync(StateHasChanged);
+        await InvokeAsync(StateHasChanged);
+
+        await Task.WhenAll(toStart.Select(async app =>
+        {
             await Proc.StartAsync(app.Id, GetCsprojPath(app.Id), app.LaunchProfile);
             _busyIds.Remove(app.Id);
-            if (i < toStart.Count - 1)
-                await Task.Delay(10);
-        }
-        await InvokeAsync(StateHasChanged);
+            await InvokeAsync(StateHasChanged);
+        }));
     }
 
     private async Task StopAll()
