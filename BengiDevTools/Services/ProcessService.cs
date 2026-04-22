@@ -266,7 +266,7 @@ public partial class ProcessService : IProcessService
         output.Reset();
         _outputs[id] = output;
 
-        var projectDir = Path.GetDirectoryName(csprojPath)!;
+        var projectDir = Path.GetDirectoryName(csprojPath);
 
         var args = $"run --no-build --project \"{csprojPath}\"";
         if (launchProfile is not null) args += $" --launch-profile \"{launchProfile}\"";
@@ -290,12 +290,12 @@ public partial class ProcessService : IProcessService
         proc.OutputDataReceived += (_, e) =>
         {
             if (e.Data is null) return;
-            output.Append(e.Data, isError: false, ExceptionPattern());
+            output.Append(e.Data, ExceptionPattern());
         };
         proc.ErrorDataReceived += (_, e) =>
         {
             if (e.Data is null) return;
-            output.Append(e.Data, isError: true, ExceptionPattern());
+            output.Append(e.Data, ExceptionPattern());
         };
 
         proc.Start();
@@ -378,14 +378,14 @@ public partial class ProcessService : IProcessService
             lock (this) { _lines.Clear(); HasException = false; }
         }
 
-        public void Append(string line, bool isError, Regex exceptionPattern)
+        public void Append(string line, Regex exceptionPattern)
         {
             lock (this)
             {
                 if (_lines.Count >= MaxLines) _lines.RemoveAt(0);
                 _lines.Add(line);
 
-                if (!HasException && (isError || exceptionPattern.IsMatch(line)))
+                if (!HasException && exceptionPattern.IsMatch(line))
                     HasException = true;
 
                 foreach (var ch in _subs)
