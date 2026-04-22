@@ -167,7 +167,7 @@ body {
   overflow-y: auto;
 }
 
-.app-group { margin-bottom: 4px; }
+.app-group { margin-bottom: 16px; }
 
 .app-group-name {
   display: flex;
