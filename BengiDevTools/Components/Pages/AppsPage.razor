@@ -456,7 +456,12 @@
     private async Task StopAll()
     {
         foreach (var app in _apps.Where(a => a.IsRunning))
+        {
             await Proc.StopAsync(app.Id);
+            ClearConsole(app.Id);
+        }
+        _statusLog.Clear();
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task AppStart(AppViewModel app)

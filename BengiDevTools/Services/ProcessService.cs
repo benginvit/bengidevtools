@@ -309,24 +309,26 @@ public partial class ProcessService : IProcessService
     public async Task StopAsync(string id)
     {
         // Kill externally detected process by scanning /proc again for exact pid
-        if (_externalPids.ContainsKey(id))
+        if (_externalPids.TryGetValue(id, out var externalPid))
         {
             _externalPids.Remove(id);
-            // Find and kill the external dotnet process
-            // We re-scan since we only stored a placeholder pid=1
-            foreach (var app in _lastApps.Where(a => a.Id == id))
+            if (externalPid > 0)
             {
-                // Kill by port if web app
-                if (app.HttpsPort.HasValue)
-                {
+                if (OperatingSystem.IsLinux())
+                    KillProcessTreeLinux(externalPid);
+                try { Process.GetProcessById(externalPid).Kill(entireProcessTree: true); } catch { }
+            }
+            else
+            {
+                // Fallback: kill by port
+                foreach (var app in _lastApps.Where(a => a.Id == id && a.HttpsPort.HasValue))
                     try
                     {
-                        var fuser = Process.Start(new ProcessStartInfo("fuser", $"-k {app.HttpsPort.Value}/tcp")
+                        var fuser = Process.Start(new ProcessStartInfo("fuser", $"-k {app.HttpsPort!.Value}/tcp")
                             { UseShellExecute = false });
                         fuser?.WaitForExit(2000);
                     }
                     catch { }
-                }
             }
             return;
         }
