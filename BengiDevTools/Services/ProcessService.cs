@@ -284,8 +284,8 @@ public partial class ProcessService : IProcessService
             RedirectStandardError  = true,
         };
 
-        // Fallback for projects without a launch profile (e.g. Worker services)
-        psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
+        psi.Environment["ASPNETCORE_ENVIRONMENT"]          = "Development";
+        psi.Environment["HealthChecksWebServer__Enabled"]  = "false";
 
         var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
         proc.Exited += (_, _) => _processes.Remove(id);
