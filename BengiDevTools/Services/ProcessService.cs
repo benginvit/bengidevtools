@@ -7,7 +7,7 @@ namespace BengiDevTools.Services;
 
 public partial class ProcessService : IProcessService
 {
-    [GeneratedRegex(@"\bException\b|\bUnhandled\b|fail:|crit:", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\w+Exception:|\bUnhandled\b|fail:|crit:", RegexOptions.IgnoreCase)]
     private static partial Regex ExceptionPattern();
 
     private readonly Dictionary<string, Process>   _processes = new();
