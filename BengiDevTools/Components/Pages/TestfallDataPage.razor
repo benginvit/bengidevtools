@@ -205,6 +205,55 @@
                         </div>
                     </div>
 
+                    <div class="section-header">Åtgärder</div>
+                    @for (int _i = 0; _i < _form.Actions.Count; _i++)
+                    {
+                        var action = _form.Actions[_i];
+                        var idx = _i;
+                        <div class="action-item">
+                            <div class="action-header">
+                                <span class="action-type-badge @(action.Type == TestfallActionType.Sql ? "sql" : "swagger")">
+                                    @(action.Type == TestfallActionType.Sql ? "SQL" : "HTTP")
+                                </span>
+                                <input class="input" style="flex:1" placeholder="Namn på åtgärden..."
+                                       @bind="action.Label" @bind:event="oninput" />
+                                <button class="btn sm" @onclick="() => MoveActionUp(idx)" disabled="@(idx == 0)">↑</button>
+                                <button class="btn sm" @onclick="() => MoveActionDown(idx)" disabled="@(idx == _form.Actions.Count - 1)">↓</button>
+                                <button class="btn sm danger" @onclick="() => RemoveAction(idx)">×</button>
+                            </div>
+                            @if (action.Type == TestfallActionType.Sql)
+                            {
+                                <textarea class="debug-sql-editor" style="height:100px;margin-top:6px;resize:vertical"
+                                          placeholder="SQL-skript..." spellcheck="false"
+                                          @bind="action.SqlScript" @bind:event="oninput" />
+                            }
+                            else
+                            {
+                                <div class="form-row" style="margin-top:6px">
+                                    <select class="input" style="width:90px" @bind="action.HttpMethod">
+                                        <option>GET</option>
+                                        <option>POST</option>
+                                        <option>PUT</option>
+                                        <option>DELETE</option>
+                                    </select>
+                                    <input class="input" style="flex:1" placeholder="https://..."
+                                           @bind="action.Url" @bind:event="oninput" />
+                                </div>
+                                <textarea class="debug-sql-editor" style="height:80px;margin-top:6px;resize:vertical"
+                                          placeholder="Body (JSON)..." spellcheck="false"
+                                          @bind="action.Body" @bind:event="oninput" />
+                            }
+                        </div>
+                    }
+                    @if (_form.Actions.Count == 0)
+                    {
+                        <div style="color:var(--muted);font-size:11px;padding:4px 0 6px">Inga åtgärder definierade.</div>
+                    }
+                    <div style="display:flex;gap:6px">
+                        <button class="btn sm" @onclick="AddSqlAction">+ SQL-skript</button>
+                        <button class="btn sm" @onclick="AddSwaggerAction">+ Swagger-anrop</button>
+                    </div>
+
                     <div class="section-header">Igun</div>
                     <div class="form-row">
                         <div class="form-group" style="flex:1">
@@ -249,8 +298,28 @@
                         <button class="btn sm danger" @onclick="DeleteSelected">🗑</button>
                     </div>
                 </div>
-                <div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
-                    <pre class="build-log" style="flex:1;border-radius:0;font-size:11px">@PreviewSql(_selected)</pre>
+                <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0">
+                    <pre class="build-log" style="flex:1;border-radius:0;font-size:11px;min-height:0">@PreviewSql(_selected)</pre>
+                    @if (_selected.Actions.Count > 0)
+                    {
+                        <div style="border-top:1px solid var(--border);padding:8px 10px;font-size:11px;flex-shrink:0">
+                            <div style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">
+                                Åtgärder (@_selected.Actions.Count)
+                            </div>
+                            @foreach (var (a, i) in _selected.Actions.Select((a, i) => (a, i)))
+                            {
+                                <div style="display:flex;align-items:center;gap:6px;padding:2px 0">
+                                    <span style="color:var(--muted);font-size:10px;min-width:16px;text-align:right">@(i + 1).</span>
+                                    <span class="action-type-badge @(a.Type == TestfallActionType.Sql ? "sql" : "swagger")">
+                                        @(a.Type == TestfallActionType.Sql ? "SQL" : "HTTP")
+                                    </span>
+                                    <span>@(string.IsNullOrEmpty(a.Label)
+                                        ? (a.Type == TestfallActionType.Sql ? "(SQL-skript)" : a.Url)
+                                        : a.Label)</span>
+                                </div>
+                            }
+                        </div>
+                    }
                 </div>
             }
             else
@@ -341,6 +410,20 @@
 
     private void CancelEdit() => _editMode = false;
 
+    private void AddSqlAction()     => _form!.Actions.Add(new TestfallAction { Type = TestfallActionType.Sql });
+    private void AddSwaggerAction() => _form!.Actions.Add(new TestfallAction { Type = TestfallActionType.Swagger });
+    private void RemoveAction(int idx)     => _form!.Actions.RemoveAt(idx);
+    private void MoveActionUp(int idx)
+    {
+        if (idx <= 0) return;
+        (_form!.Actions[idx - 1], _form.Actions[idx]) = (_form.Actions[idx], _form.Actions[idx - 1]);
+    }
+    private void MoveActionDown(int idx)
+    {
+        if (idx >= _form!.Actions.Count - 1) return;
+        (_form.Actions[idx + 1], _form.Actions[idx]) = (_form.Actions[idx], _form.Actions[idx + 1]);
+    }
+
     private void DeleteSelected()
     {
         if (_selected is null) return;
@@ -430,5 +513,14 @@
         FordranStatus                     = r.FordranStatus,
         IgunSignalPost                    = r.IgunSignalPost,
         IgunSignalResultat                = r.IgunSignalResultat,
+        Actions = r.Actions.Select(a => new TestfallAction
+        {
+            Type       = a.Type,
+            Label      = a.Label,
+            SqlScript  = a.SqlScript,
+            Url        = a.Url,
+            HttpMethod = a.HttpMethod,
+            Body       = a.Body,
+        }).ToList(),
     };
 }

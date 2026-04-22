@@ -1,5 +1,17 @@
 namespace BengiDevTools.Models;
 
+public enum TestfallActionType { Sql, Swagger }
+
+public class TestfallAction
+{
+    public TestfallActionType Type       { get; set; }
+    public string             Label      { get; set; } = "";
+    public string             SqlScript  { get; set; } = "";
+    public string             Url        { get; set; } = "";
+    public string             HttpMethod { get; set; } = "POST";
+    public string             Body       { get; set; } = "";
+}
+
 public class TestDataRow
 {
     public int    DataSetId                         { get; set; }
@@ -43,4 +55,6 @@ public class TestDataRow
     // Igun
     public string IgunSignalPost                    { get; set; } = "";
     public string IgunSignalResultat                { get; set; } = "";
+
+    public List<TestfallAction> Actions             { get; set; } = [];
 }

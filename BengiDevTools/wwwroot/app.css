@@ -383,6 +383,34 @@ body {
   width: 100%;
 }
 
+/* ─── Testfall actions ─────────────────────────────────────────────────────── */
+
+.action-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+  margin-bottom: 6px;
+  background: var(--surface);
+}
+
+.action-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.action-type-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  font-family: var(--mono);
+}
+
+.action-type-badge.sql     { background: #1e3a2f; color: var(--green); }
+.action-type-badge.swagger { background: #1a2a3f; color: var(--blue); }
+
 /* ─── Build page ───────────────────────────────────────────────────────────── */
 
 .build-layout {
