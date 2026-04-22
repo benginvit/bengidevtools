@@ -448,7 +448,7 @@
             await Proc.StartAsync(app.Id, GetCsprojPath(app.Id), app.LaunchProfile);
             _busyIds.Remove(app.Id);
             if (i < toStart.Count - 1)
-                await Task.Delay(3000);
+                await Task.Delay(10);
         }
         await InvokeAsync(StateHasChanged);
     }
