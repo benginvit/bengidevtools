@@ -454,11 +454,15 @@
 
     private async Task StopAll()
     {
-        foreach (var app in _apps.Where(a => a.IsRunning))
+        var toStop = _apps.Where(a => a.IsRunning).ToList();
+        await Task.WhenAll(toStop.Select(async app =>
         {
             await Proc.StopAsync(app.Id);
+            app.IsRunning  = false;
+            app.IsExternal = false;
             ClearConsole(app.Id);
-        }
+            await InvokeAsync(StateHasChanged);
+        }));
         _statusLog.Clear();
         await InvokeAsync(StateHasChanged);
     }
