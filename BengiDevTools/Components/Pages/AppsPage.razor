@@ -447,7 +447,8 @@
         var toStart = _apps.Where(a => a.Checked && !a.IsRunning).ToList();
         foreach (var app in toStart)
             _busyIds.Add(app.Id);
-        await InvokeAsync(StateHasChanged);
+        StateHasChanged();
+        await Task.Yield();
 
         await Task.WhenAll(toStart.Select(async app =>
         {
@@ -463,7 +464,8 @@
     private async Task StopAll()
     {
         _stopping = true;
-        await InvokeAsync(StateHasChanged);
+        StateHasChanged();
+        await Task.Yield();
 
         var toStop = _apps.Where(a => a.IsRunning).ToList();
         await Task.WhenAll(toStop.Select(async app =>
