@@ -19,10 +19,12 @@
                 @_lastScanned.Value.ToLocalTime().ToString("d")
             </span>
         }
-        <button class="btn primary" @onclick="StartSelected" disabled="@(_checkedCount == 0)">
-            ▶ Starta (@_checkedCount)
+        <button class="btn primary" @onclick="StartSelected" disabled="@(_checkedCount == 0 || _starting || _stopping)">
+            @if (_starting) { <span class="status-spinner">⟳</span> } else { <text>▶</text> } Starta (@_checkedCount)
         </button>
-        <button class="btn danger" @onclick="StopAll">■ Stoppa alla</button>
+        <button class="btn danger" @onclick="StopAll" disabled="@(_stopping || _starting)">
+            @if (_stopping) { <span class="status-spinner">⟳</span> } else { <text>■</text> } Stoppa alla
+        </button>
         <button class="btn" @onclick="DoGitRefresh" disabled="@(_gitLoading || _apps.Count == 0)"
                 title="Uppdatera git-status">
             @(_gitLoading ? "⟳" : "⟳ Git")
@@ -213,6 +215,8 @@
     private List<AppViewModel>       _apps            = [];
     private bool                     _scanning;
     private bool                     _gitLoading;
+    private bool                     _starting;
+    private bool                     _stopping;
 
     private DateTime?                _lastScanned;
     private readonly HashSet<string> _busyIds         = [];
@@ -439,6 +443,7 @@
 
     private async Task StartSelected()
     {
+        _starting = true;
         var toStart = _apps.Where(a => a.Checked && !a.IsRunning).ToList();
         foreach (var app in toStart)
             _busyIds.Add(app.Id);
@@ -450,10 +455,16 @@
             _busyIds.Remove(app.Id);
             await InvokeAsync(StateHasChanged);
         }));
+
+        _starting = false;
+        await InvokeAsync(StateHasChanged);
     }
 
     private async Task StopAll()
     {
+        _stopping = true;
+        await InvokeAsync(StateHasChanged);
+
         var toStop = _apps.Where(a => a.IsRunning).ToList();
         await Task.WhenAll(toStop.Select(async app =>
         {
@@ -463,6 +474,8 @@
             ClearConsole(app.Id);
             await InvokeAsync(StateHasChanged);
         }));
+
+        _stopping = false;
         _statusLog.Clear();
         await InvokeAsync(StateHasChanged);
     }
