@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Net.NetworkInformation;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
 
@@ -267,42 +266,23 @@ public partial class ProcessService : IProcessService
         output.Reset();
         _outputs[id] = output;
 
-        var projectDir  = Path.GetDirectoryName(csprojPath)!;
-        var projectName = Path.GetFileNameWithoutExtension(csprojPath);
-        var dllPath     = FindDll(projectDir, projectName);
+        var projectDir = Path.GetDirectoryName(csprojPath)!;
 
-        ProcessStartInfo psi;
-        if (dllPath is not null)
-        {
-            psi = new ProcessStartInfo("dotnet", $"\"{dllPath}\"")
-            {
-                WorkingDirectory       = projectDir,
-                UseShellExecute        = false,
-                CreateNoWindow         = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-            };
-        }
-        else
-        {
-            var args = $"run --project \"{csprojPath}\"";
-            if (launchProfile is not null) args += $" --launch-profile \"{launchProfile}\"";
-            psi = new ProcessStartInfo("dotnet")
-            {
-                Arguments              = args,
-                WorkingDirectory       = projectDir,
-                UseShellExecute        = false,
-                CreateNoWindow         = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true,
-            };
-        }
+        var args = $"run --no-build --project \"{csprojPath}\"";
+        if (launchProfile is not null) args += $" --launch-profile \"{launchProfile}\"";
 
-        // Always default to Development; let launch profile override if needed
+        var psi = new ProcessStartInfo("dotnet")
+        {
+            Arguments              = args,
+            WorkingDirectory       = projectDir,
+            UseShellExecute        = false,
+            CreateNoWindow         = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError  = true,
+        };
+
+        // Fallback for projects without a launch profile (e.g. Worker services)
         psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
-        var envVars = ReadLaunchProfileEnv(projectDir, launchProfile);
-        foreach (var (k, v) in envVars)
-            psi.Environment[k] = v;
 
         var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
         proc.Exited += (_, _) => _processes.Remove(id);
@@ -375,43 +355,6 @@ public partial class ProcessService : IProcessService
     }
 
     private IEnumerable<ScannedApp> _lastApps = [];
-
-    private static string? FindDll(string projectDir, string projectName)
-    {
-        foreach (var config in new[] { "Debug", "Release" })
-        {
-            var binDir = Path.Combine(projectDir, "bin", config);
-            if (!Directory.Exists(binDir)) continue;
-            var dll = Directory.GetFiles(binDir, $"{projectName}.dll", SearchOption.AllDirectories)
-                .FirstOrDefault();
-            if (dll is not null) return dll;
-        }
-        return null;
-    }
-
-    private static Dictionary<string, string> ReadLaunchProfileEnv(string projectDir, string? profileName)
-    {
-        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        var path = Path.Combine(projectDir, "Properties", "launchSettings.json");
-        if (!File.Exists(path) || profileName is null) return result;
-        try
-        {
-            using var doc = JsonDocument.Parse(File.ReadAllText(path));
-            if (!doc.RootElement.TryGetProperty("profiles", out var profiles)) return result;
-            foreach (var p in profiles.EnumerateObject())
-            {
-                if (!p.Name.Equals(profileName, StringComparison.OrdinalIgnoreCase)) continue;
-                if (p.Value.TryGetProperty("applicationUrl", out var url))
-                    result["ASPNETCORE_URLS"] = url.GetString() ?? "";
-                if (p.Value.TryGetProperty("environmentVariables", out var envVars))
-                    foreach (var env in envVars.EnumerateObject())
-                        result[env.Name] = env.Value.GetString() ?? "";
-                break;
-            }
-        }
-        catch { }
-        return result;
-    }
 
     public async Task RestartAsync(string id, string csprojPath, string? launchProfile = null)
     {
