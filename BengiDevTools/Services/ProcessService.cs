@@ -282,12 +282,6 @@ public partial class ProcessService : IProcessService
                 RedirectStandardOutput = true,
                 RedirectStandardError  = true,
             };
-            var envVars = ReadLaunchProfileEnv(projectDir, launchProfile);
-            foreach (var (k, v) in envVars)
-                psi.Environment[k] = v;
-            // Default to Development unless launch profile explicitly set an environment
-            if (!envVars.ContainsKey("ASPNETCORE_ENVIRONMENT") && !envVars.ContainsKey("DOTNET_ENVIRONMENT"))
-                psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
         }
         else
         {
@@ -303,6 +297,12 @@ public partial class ProcessService : IProcessService
                 RedirectStandardError  = true,
             };
         }
+
+        // Always default to Development; let launch profile override if needed
+        psi.Environment["ASPNETCORE_ENVIRONMENT"] = "Development";
+        var envVars = ReadLaunchProfileEnv(projectDir, launchProfile);
+        foreach (var (k, v) in envVars)
+            psi.Environment[k] = v;
 
         var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
         proc.Exited += (_, _) => _processes.Remove(id);
