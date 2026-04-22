@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.NetworkInformation;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
 
@@ -268,6 +269,8 @@ public partial class ProcessService : IProcessService
 
         var projectDir = Path.GetDirectoryName(csprojPath);
 
+        FreeOccupiedPorts(projectDir, launchProfile);
+
         var args = $"run --no-build --project \"{csprojPath}\"";
         if (launchProfile is not null) args += $" --launch-profile \"{launchProfile}\"";
 
@@ -357,6 +360,57 @@ public partial class ProcessService : IProcessService
     }
 
     private IEnumerable<ScannedApp> _lastApps = [];
+
+    private static void FreeOccupiedPorts(string? projectDir, string? launchProfile)
+    {
+        if (projectDir is null || launchProfile is null) return;
+        var path = Path.Combine(projectDir, "Properties", "launchSettings.json");
+        if (!File.Exists(path)) return;
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            if (!doc.RootElement.TryGetProperty("profiles", out var profiles)) return;
+            foreach (var p in profiles.EnumerateObject())
+            {
+                if (!p.Name.Equals(launchProfile, StringComparison.OrdinalIgnoreCase)) continue;
+                if (!p.Value.TryGetProperty("applicationUrl", out var urlProp)) return;
+                foreach (var segment in (urlProp.GetString() ?? "").Split(';'))
+                    if (Uri.TryCreate(segment.Trim(), UriKind.Absolute, out var uri))
+                        KillPort(uri.Port);
+                return;
+            }
+        }
+        catch { }
+    }
+
+    private static void KillPort(int port)
+    {
+        var inUse = IPGlobalProperties.GetIPGlobalProperties()
+            .GetActiveTcpListeners()
+            .Any(ep => ep.Port == port);
+        if (!inUse) return;
+
+        if (OperatingSystem.IsLinux())
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo("/bin/bash", $"-c \"fuser -k {port}/tcp 2>/dev/null\"")
+                    { UseShellExecute = false, CreateNoWindow = true })?.WaitForExit(2000);
+            }
+            catch { }
+        }
+        else if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                // netstat to find PID, then taskkill
+                var psi = new ProcessStartInfo("cmd", $"/c for /f \"tokens=5\" %a in ('netstat -aon ^| findstr :{port} ^| findstr LISTENING') do taskkill /F /PID %a")
+                    { UseShellExecute = false, CreateNoWindow = true };
+                Process.Start(psi)?.WaitForExit(3000);
+            }
+            catch { }
+        }
+    }
 
     public async Task RestartAsync(string id, string csprojPath, string? launchProfile = null)
     {
