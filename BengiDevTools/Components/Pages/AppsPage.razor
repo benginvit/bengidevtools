@@ -3,48 +3,79 @@
 @inject IProcessService Proc
 @inject IGitService Git
 @inject ISettingsService Settings
+@inject IBuildService Build
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
 <div class="apps-page">
-    <!-- ── Toolbar ── -->
-    <div class="apps-toolbar">
-        <button class="btn" @onclick="DoScan" disabled="@_scanning"
-                title="@(_lastScanned.HasValue ? "Senast scannad: " + _lastScanned.Value.ToLocalTime().ToString("g") : "Aldrig scannad")">
-            @(_scanning ? "⟳" : "⟳ Scanna")
-        </button>
-        @if (_lastScanned.HasValue)
-        {
-            <span style="font-size:10px;color:var(--muted);align-self:center">
-                @_lastScanned.Value.ToLocalTime().ToString("d")
-            </span>
-        }
-        <button class="btn primary" @onclick="StartSelected" disabled="@(_checkedCount == 0 || _starting || _stopping)">
-            @if (_starting) { <span class="status-spinner">⟳</span> } else { <text>▶</text> } Starta (@_checkedCount)
-        </button>
-        <button class="btn danger" @onclick="StopAll" disabled="@(_stopping || _starting)">
-            @if (_stopping) { <span class="status-spinner">⟳</span> } else { <text>■</text> } Stoppa alla
-        </button>
-        <button class="btn" @onclick="DoGitRefresh" disabled="@(_gitLoading || _apps.Count == 0)"
-                title="Uppdatera git-status">
-            @(_gitLoading ? "⟳" : "⟳ Git")
-        </button>
-        <a class="btn" href="/api/apps/localuser/export" download="appsettings-localuser.zip"
-           title="Exportera alla localuser-filer" style="text-decoration:none">↓ Exportera</a>
-    </div>
-
-    <div style="display:flex;align-items:center;gap:8px;padding:4px 0 8px;font-size:12px">
-        <label class="cb">
-            <input type="checkbox" checked="@(_apps.Count > 0 && _apps.All(a => a.Checked))"
-                   @onchange="ToggleAllChecked" />
-            <span style="color:var(--muted)">Välj alla</span>
-        </label>
-        <span style="margin-left:auto;color:var(--muted)">@_runningCount/@_apps.Count kör</span>
+    <!-- ── Tre-kolumns header ── -->
+    <div style="display:grid;grid-template-columns:2fr 1fr 150px;border-bottom:1px solid #333;flex-shrink:0">
+        <!-- Launch header -->
+        <div style="padding:6px 8px;border-right:1px solid #333;display:flex;flex-direction:column;gap:4px">
+            <div style="display:flex;gap:4px;align-items:center">
+                <button class="btn sm primary" @onclick="StartSelected"
+                        disabled="@(_checkedCount == 0 || _starting || _stopping)">
+                    @if (_starting) { <span class="status-spinner">⟳</span> } else { <text>▶</text> }
+                    Starta (@_checkedCount)
+                </button>
+                <button class="btn sm danger" @onclick="StopAll" disabled="@(_stopping || _starting)">
+                    @if (_stopping) { <span class="status-spinner">⟳</span> } else { <text>■</text> }
+                    Stoppa alla
+                </button>
+                <div style="position:relative">
+                    <button class="btn sm" @onclick="() => _showScanMenu = !_showScanMenu"
+                            title="Scanna och exportera">•••</button>
+                    @if (_showScanMenu)
+                    {
+                        <div style="position:absolute;top:calc(100% + 3px);left:0;z-index:50;background:#1e1e1e;border:1px solid #444;border-radius:3px;padding:3px;display:flex;flex-direction:column;gap:2px;min-width:170px">
+                            <button class="btn sm" style="width:100%;text-align:left"
+                                    @onclick="async () => { _showScanMenu = false; await DoScan(); }"
+                                    disabled="@_scanning"
+                                    title="@(_lastScanned.HasValue ? "Senast: " + _lastScanned.Value.ToLocalTime().ToString("g") : "Aldrig scannad")">
+                                ⟳ Scanna
+                                @if (_lastScanned.HasValue)
+                                {
+                                    <span style="color:var(--muted);font-size:9px;margin-left:4px">@_lastScanned.Value.ToLocalTime().ToString("d")</span>
+                                }
+                            </button>
+                            <a class="btn sm" href="/api/apps/localuser/export" download="appsettings-localuser.zip"
+                               @onclick="() => _showScanMenu = false"
+                               style="width:100%;text-align:left;text-decoration:none">
+                                ↓ Exportera localuser
+                            </a>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:11px">
+                <label class="cb">
+                    <input type="checkbox" checked="@(_apps.Count > 0 && _apps.All(a => a.Checked))"
+                           @onchange="ToggleAllChecked" />
+                    <span style="color:var(--muted)">Välj alla</span>
+                </label>
+                <span style="color:var(--muted)">@_runningCount/@_apps.Count kör</span>
+            </div>
+        </div>
+        <!-- Bygg header -->
+        <div style="padding:6px 8px;border-right:1px solid #333;display:flex;align-items:center;gap:4px">
+            <button class="btn sm" @onclick="BuildAllRepos" disabled="@(_apps.Count == 0)">Bygg alla</button>
+            <button class="btn sm" @onclick="() => _expandedBuildRepos.Clear()"
+                    title="Kollaps alla bygg-sektioner" disabled="@(_expandedBuildRepos.Count == 0)">▲ Kollaps</button>
+        </div>
+        <!-- Git header -->
+        <div style="padding:6px 8px;display:flex;align-items:center">
+            <button class="btn sm" @onclick="DoGitRefresh"
+                    disabled="@(_gitLoading || _apps.Count == 0)"
+                    title="Uppdatera git-status">
+                @if (_gitLoading) { <span class="status-spinner">⟳</span> } else { <text>⟳</text> }
+                Git
+            </button>
+        </div>
     </div>
 
     @if (_apps.Count == 0 && !_scanning)
     {
-        <div style="color:var(--muted);font-size:12px">
+        <div style="color:var(--muted);font-size:12px;padding:8px">
             Tryck Scanna, eller kontrollera repo-rot i Inställningar.
         </div>
     }
@@ -58,89 +89,171 @@
             var gitBranch  = repoApps.FirstOrDefault()?.GitBranch ?? string.Empty;
             var allChecked = repoApps.All(a => a.Checked);
             var nameColor  = gitStatus == "Uppdaterad" ? "var(--green)" : gitStatus == "Bakom" ? "var(--yellow)" : "var(--text)";
+            var bm         = GetBuildMode(repoName);
 
-            <div class="app-group">
-                <div class="app-group-name">
-                    <label class="cb" @onclick:stopPropagation>
-                        <input type="checkbox" checked="@allChecked"
-                               @onchange="e => SetRepoChecked(repoName, (bool)(e.Value ?? false))" />
-                    </label>
-                    <span style="color:@nameColor">@repoName</span>
-                    @if (!string.IsNullOrEmpty(gitBranch))
-                    {
-                        <span style="margin-left:auto;font-size:10px;color:var(--muted);font-family:var(--mono)">@gitBranch</span>
-                    }
-                </div>
+            <div class="app-group" style="display:grid;grid-template-columns:2fr 1fr 150px;border-bottom:1px solid #222">
 
-                @foreach (var app in repoApps)
-                {
-                    var isBusy     = _busyIds.Contains(app.Id);
-                    var dotClass   = isBusy ? "starting" : app.HasException ? "exception" : app.IsExternal ? "external" : app.IsRunning ? "running" : "stopped";
-                    var dotTitle   = isBusy          ? "Startar…" :
-                                     app.HasException ? "Exception!" :
-                                     app.IsExternal   ? "Externt startad" :
-                                     app.IsRunning    ? $"PID {app.Pid} — klicka för att kopiera" : "Stoppad";
-                    var isExpanded = _consoles.ContainsKey(app.Id);
-                    var consoleId  = "con-" + app.Id.Replace('/', '-');
-
-                    <div class="app-row @(isExpanded ? "app-row-selected" : "")"
-                         style="cursor:pointer" @onclick="() => ToggleConsole(app.Id)">
-                        <input type="checkbox" checked="@app.Checked"
-                               style="accent-color:var(--blue);width:13px;height:13px;cursor:pointer;flex-shrink:0"
-                               @onclick:stopPropagation
-                               @onchange="e => app.Checked = (bool)(e.Value ?? false)" />
-                        <div class="app-dot @dotClass" title="@dotTitle"
-                             @onclick:stopPropagation @onclick="() => CopyPid(app)"></div>
-                        <span class="app-name">@app.ProjectName</span>
-                        <span class="app-port"
-                              style="@(app.HttpsPort.HasValue && app.IsRunning ? "cursor:pointer;color:var(--blue)" : "")"
-                              title="@(app.HttpsPort.HasValue && app.IsRunning ? $"Öppna https://localhost:{app.HttpsPort}" : "")"
-                              @onclick:stopPropagation
-                              @onclick="() => OpenPort(app)">@(app.HttpsPort.HasValue ? ":" + app.HttpsPort : string.Empty)</span>
-                        <div class="app-actions" @onclick:stopPropagation>
-                            <button class="btn sm"
-                                    title="@(app.HasLocalUser ? "Redigera appsettings.localuser.json" : "Skapa appsettings.localuser.json")"
-                                    style="opacity:@(app.HasLocalUser ? "1" : "0.4")"
-                                    @onclick="() => OpenLocalUser(app.Id)">⚙</button>
-                            @if (isBusy)
-                            {
-                                <button class="btn sm primary" disabled><span class="status-spinner">⟳</span></button>
-                            }
-                            else if (!app.IsRunning)
-                            {
-                                <button class="btn sm" @onclick="() => AppStart(app)">▶</button>
-                            }
-                            else
-                            {
-                                <button class="btn sm" @onclick="() => AppRestart(app)">⟳</button>
-                                <button class="btn sm danger" @onclick="() => AppStop(app)">■</button>
-                            }
-                        </div>
+                <!-- ── Launch column ── -->
+                <div style="border-right:1px solid #2a2a2a">
+                    <div class="app-group-name">
+                        <label class="cb" @onclick:stopPropagation>
+                            <input type="checkbox" checked="@allChecked"
+                                   @onchange="e => SetRepoChecked(repoName, (bool)(e.Value ?? false))" />
+                        </label>
+                        <span style="color:@nameColor">@repoName</span>
                     </div>
-
-                    @if (isExpanded && _consoles.TryGetValue(app.Id, out var con))
+                    @foreach (var app in repoApps)
                     {
-                        <div class="app-log-window">
-                            <div class="debug-console-header">
-                                <span style="color:var(--blue);font-weight:600;font-size:11px">@app.ProjectName</span>
-                                <button class="btn sm" @onclick="() => ClearConsole(app.Id)">Rensa</button>
-                            </div>
-                            <div class="build-log" id="@consoleId">
-                                @if (con.Lines.Count == 0)
+                        var isBusy     = _busyIds.Contains(app.Id);
+                        var dotClass   = isBusy ? "starting" : app.HasException ? "exception" : app.IsExternal ? "external" : app.IsRunning ? "running" : "stopped";
+                        var dotTitle   = isBusy          ? "Startar…" :
+                                         app.HasException ? "Exception!" :
+                                         app.IsExternal   ? "Externt startad" :
+                                         app.IsRunning    ? $"PID {app.Pid} — klicka för att kopiera" : "Stoppad";
+                        var isExpanded = _consoles.ContainsKey(app.Id);
+                        var consoleId  = "con-" + app.Id.Replace('/', '-');
+
+                        <div class="app-row @(isExpanded ? "app-row-selected" : "")"
+                             style="cursor:pointer" @onclick="() => ToggleConsole(app.Id)">
+                            <input type="checkbox" checked="@app.Checked"
+                                   style="accent-color:var(--blue);width:13px;height:13px;cursor:pointer;flex-shrink:0"
+                                   @onclick:stopPropagation
+                                   @onchange="e => app.Checked = (bool)(e.Value ?? false)" />
+                            <div class="app-dot @dotClass" title="@dotTitle"
+                                 @onclick:stopPropagation @onclick="() => CopyPid(app)"></div>
+                            <span class="app-name">@app.ProjectName</span>
+                            <span class="app-port"
+                                  style="@(app.HttpsPort.HasValue && app.IsRunning ? "cursor:pointer;color:var(--blue)" : "")"
+                                  title="@(app.HttpsPort.HasValue && app.IsRunning ? $"Öppna https://localhost:{app.HttpsPort}" : "")"
+                                  @onclick:stopPropagation
+                                  @onclick="() => OpenPort(app)">@(app.HttpsPort.HasValue ? ":" + app.HttpsPort : string.Empty)</span>
+                            <div class="app-actions" @onclick:stopPropagation>
+                                <button class="btn sm"
+                                        title="@(app.HasLocalUser ? "Redigera appsettings.localuser.json" : "Skapa appsettings.localuser.json")"
+                                        style="opacity:@(app.HasLocalUser ? "1" : "0.4")"
+                                        @onclick="() => OpenLocalUser(app.Id)">⚙</button>
+                                @if (isBusy)
                                 {
-                                    <span style="color:var(--muted)">Väntar på output...</span>
+                                    <button class="btn sm primary" disabled><span class="status-spinner">⟳</span></button>
+                                }
+                                else if (!app.IsRunning)
+                                {
+                                    <button class="btn sm" @onclick="() => AppStart(app)">▶</button>
                                 }
                                 else
                                 {
-                                    @foreach (var line in con.Lines)
-                                    {
-                                        <div style="color:@ColorLine(line)">@(string.IsNullOrEmpty(line) ? "\u00A0" : line)</div>
-                                    }
+                                    <button class="btn sm" @onclick="() => AppRestart(app)">⟳</button>
+                                    <button class="btn sm danger" @onclick="() => AppStop(app)">■</button>
                                 }
                             </div>
                         </div>
+
+                        @if (isExpanded && _consoles.TryGetValue(app.Id, out var con))
+                        {
+                            <div class="app-log-window">
+                                <div class="debug-console-header">
+                                    <span style="color:var(--blue);font-weight:600;font-size:11px">@app.ProjectName</span>
+                                    <button class="btn sm" @onclick="() => ClearConsole(app.Id)">Rensa</button>
+                                </div>
+                                <div class="build-log" id="@consoleId">
+                                    @if (con.Lines.Count == 0)
+                                    {
+                                        <span style="color:var(--muted)">Väntar på output...</span>
+                                    }
+                                    else
+                                    {
+                                        @foreach (var line in con.Lines)
+                                        {
+                                            <div style="color:@ColorLine(line)">@(string.IsNullOrEmpty(line) ? " " : line)</div>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                        }
                     }
-                }
+                </div>
+
+                <!-- ── Bygg column ── -->
+                <div style="border-right:1px solid #2a2a2a">
+                    @{ var repoExpanded = _expandedBuildRepos.Contains(repoName); }
+                    <div style="display:flex;gap:3px;padding:3px 6px;font-size:10px;background:#1a1a1a;border-bottom:1px solid #222;min-height:28px;align-items:center">
+                        <button class="btn sm" title="Visa/dölj projekt"
+                                @onclick="() => { if (!_expandedBuildRepos.Remove(repoName)) _expandedBuildRepos.Add(repoName); }">
+                            @(repoExpanded ? "▲" : "▼")
+                        </button>
+                        <span style="color:#444;margin:0 1px">|</span>
+                        <button class="btn sm @(bm == BuildMode.Snabb ? "primary" : "")"
+                                title="Hoppar över restore, analyzers och docs – snabbast möjliga"
+                                @onclick="() => SetBuildMode(repoName, BuildMode.Snabb)">Snabb</button>
+                        <button class="btn sm @(bm == BuildMode.Ren ? "primary" : "")"
+                                title="Med restore men hoppar över analyzers och docs"
+                                @onclick="() => SetBuildMode(repoName, BuildMode.Ren)">Ren</button>
+                        <button class="btn sm @(bm == BuildMode.Normal ? "primary" : "")"
+                                title="Fullständigt bygge – alla steg aktiverade"
+                                @onclick="() => SetBuildMode(repoName, BuildMode.Normal)">Normal</button>
+                        <span style="color:#444;margin:0 1px">|</span>
+                        <button class="btn sm" @onclick="() => BuildAll(repoName)">Bygg alla</button>
+                    </div>
+                    @if (repoExpanded && _repoProjects.TryGetValue(repoName, out var projects))
+                    {
+                        @foreach (var proj in projects)
+                        {
+                            var bs         = _buildStates.GetValueOrDefault(proj.Path);
+                            var showOutput = _expandedBuildOutputs.Contains(proj.Path);
+                            var isRunning  = IsCsprojRunning(proj.Path);
+                            var nc2        = isRunning              ? "var(--green)"
+                                           : bs?.Status == "FAILED" ? "var(--red)"
+                                           : bs?.Status == "OK"     ? "var(--green)"
+                                           : "var(--muted)";
+                            <div style="display:flex;align-items:center;gap:4px;padding:2px 6px;font-size:11px">
+                                <button class="btn sm" disabled="@(bs?.IsBuilding == true || isRunning)"
+                                        @onclick="() => BuildProject(proj.Path, repoName)">Bygg</button>
+                                @if (bs?.IsBuilding == true)
+                                {
+                                    <span class="status-spinner" style="font-size:12px">⟳</span>
+                                }
+                                <span style="font-family:var(--mono);color:@nc2">@proj.Name</span>
+                                @if (isRunning)
+                                {
+                                    <span style="color:var(--green);font-size:10px">● kör</span>
+                                }
+                                @if (bs is not null)
+                                {
+                                    <button class="btn sm" @onclick="() => ToggleBuildOutput(proj.Path)">
+                                        @(showOutput ? "▲" : "▼")
+                                    </button>
+                                }
+                            </div>
+                            @if (showOutput && bs is not null)
+                            {
+                                <div class="app-log-window" style="margin:0 4px 4px;max-height:180px">
+                                    <div class="debug-console-header">
+                                        <span style="font-size:11px;color:var(--muted);font-family:var(--mono)">@proj.Name</span>
+                                        <button class="btn sm" @onclick="() => { bs.Lines.Clear(); }">Rensa</button>
+                                    </div>
+                                    <div class="build-log">
+                                        @foreach (var line in bs.Lines)
+                                        {
+                                            <div style="color:@ColorLine(line)">@(string.IsNullOrEmpty(line) ? " " : line)</div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        }
+                    }
+                </div>
+
+                <!-- ── Git column ── -->
+                <div style="padding:4px 6px;font-size:11px;min-height:28px">
+                    @if (!string.IsNullOrEmpty(gitBranch))
+                    {
+                        <div style="font-family:var(--mono);color:var(--muted);font-size:10px">@gitBranch</div>
+                    }
+                    @if (gitStatus != "–")
+                    {
+                        <div style="color:@nameColor;font-size:10px">@gitStatus</div>
+                    }
+                </div>
             </div>
         }
     </div>
@@ -212,18 +325,23 @@
 @code {
     // ── State ──────────────────────────────────────────────────────────────────
 
-    private List<AppViewModel>       _apps            = [];
+    private List<AppViewModel>       _apps       = [];
     private bool                     _scanning;
     private bool                     _gitLoading;
     private bool                     _starting;
     private bool                     _stopping;
-
     private DateTime?                _lastScanned;
-    private readonly HashSet<string> _busyIds         = [];
-
+    private readonly HashSet<string> _busyIds    = [];
 
     // Per-app consoles (keyed by app.Id)
     private readonly Dictionary<string, ConsoleState> _consoles = new();
+
+    // Per-repo build
+    private readonly HashSet<string>                        _expandedBuildOutputs = [];
+    private readonly HashSet<string>                        _expandedBuildRepos   = [];
+    private readonly Dictionary<string, List<ProjectInfo>> _repoProjects         = new();
+    private readonly Dictionary<string, BuildState>        _buildStates          = new();
+    private readonly Dictionary<string, BuildMode>          _repoBuildFlags       = new();
 
     // LocalUser modal
     private string? _localUserEditId;
@@ -235,8 +353,11 @@
     private string? _localUserError;
 
     // Status log (sticky bottom bar)
-    private readonly List<string> _statusLog  = [];
+    private readonly List<string> _statusLog = [];
     private bool                  _statusBusy;
+
+    // Scan expand menu
+    private bool _showScanMenu;
 
     private readonly CancellationTokenSource _cts = new();
 
@@ -244,8 +365,8 @@
         .Select(a => a.RepoName).Distinct()
         .OrderBy(r => r.Contains("gateway", StringComparison.OrdinalIgnoreCase) ? 1 : 0)
         .ThenBy(r => r);
-    private int                 _checkedCount  => _apps.Count(a => a.Checked);
-    private int                 _runningCount  => _apps.Count(a => a.IsRunning);
+    private int _checkedCount => _apps.Count(a => a.Checked);
+    private int _runningCount => _apps.Count(a => a.IsRunning);
 
     // ── Init / Dispose ─────────────────────────────────────────────────────────
 
@@ -284,6 +405,9 @@
             IsExternal    = false,
             Pid           = -1,
         }).ToList();
+
+        foreach (var repoName in _apps.Select(a => a.RepoName).Distinct())
+            LoadRepoProjects(repoName);
     }
 
     // ── Poll ───────────────────────────────────────────────────────────────────
@@ -341,20 +465,15 @@
 
     private async Task DoScan()
     {
-        _scanning    = true;
-        _statusBusy  = true;
+        _scanning   = true;
+        _statusBusy = true;
         StatusLog("──── Scanna ────────────────────────────");
-        await Task.Run(() => Scan.Scan(msg =>
-            _ = StatusLogAsync(msg)));
+        await Task.Run(() => Scan.Scan(msg => _ = StatusLogAsync(msg)));
         BuildAppList();
         _lastScanned = Scan.LastScanned;
         _scanning    = false;
         await InvokeAsync(StateHasChanged);
-
-        // Checkout develop + pull
         await DoCheckoutCore();
-
-        // Git status
         await DoGitRefreshCore();
         _statusBusy = false;
         await InvokeAsync(StateHasChanged);
@@ -445,18 +564,15 @@
     {
         _starting = true;
         var toStart = _apps.Where(a => a.Checked && !a.IsRunning).ToList();
-        foreach (var app in toStart)
-            _busyIds.Add(app.Id);
+        foreach (var app in toStart) _busyIds.Add(app.Id);
         StateHasChanged();
         await Task.Yield();
-
         await Task.WhenAll(toStart.Select(async app =>
         {
             await Proc.StartAsync(app.Id, GetCsprojPath(app.Id), app.LaunchProfile);
             _busyIds.Remove(app.Id);
             await InvokeAsync(StateHasChanged);
         }));
-
         _starting = false;
         await InvokeAsync(StateHasChanged);
     }
@@ -466,7 +582,6 @@
         _stopping = true;
         StateHasChanged();
         await Task.Yield();
-
         var toStop = _apps.Where(a => a.IsRunning).ToList();
         await Task.WhenAll(toStop.Select(async app =>
         {
@@ -476,7 +591,6 @@
             ClearConsole(app.Id);
             await InvokeAsync(StateHasChanged);
         }));
-
         _stopping = false;
         _statusLog.Clear();
         await InvokeAsync(StateHasChanged);
@@ -512,7 +626,7 @@
     private string GetCsprojPath(string id) =>
         Scan.GetById(id)?.CsprojPath ?? throw new InvalidOperationException($"App {id} not found");
 
-    // ── Console (expandable per app) ───────────────────────────────────────────
+    // ── Console ────────────────────────────────────────────────────────────────
 
     private void ToggleConsole(string id)
     {
@@ -523,11 +637,11 @@
         }
         else
         {
-            var state = new ConsoleState();
+            var state  = new ConsoleState();
             var buffer = Proc.GetOutputBuffer(id);
             state.Lines.AddRange(buffer.TakeLast(2000));
-            state.Offset = buffer.Count;
-            _consoles[id] = state;
+            state.Offset   = buffer.Count;
+            _consoles[id]  = state;
             _ = PollConsole(id, state, state.Cts.Token);
         }
     }
@@ -566,7 +680,7 @@
         return "var(--text)";
     }
 
-    // ── PID copy ───────────────────────────────────────────────────────────────
+    // ── PID / port ─────────────────────────────────────────────────────────────
 
     private async Task OpenPort(AppViewModel app)
     {
@@ -621,6 +735,93 @@
         finally                  { _localUserSaving = false; }
     }
 
+    // ── Build ──────────────────────────────────────────────────────────────────
+
+    private void LoadRepoProjects(string repoName)
+    {
+        var dir      = Path.Combine(Settings.Settings.RepoRootPath, repoName);
+        var excluded = Settings.Settings.ExcludedProjects
+            .Where(e => !string.IsNullOrWhiteSpace(e))
+            .Select(e => e.Trim())
+            .ToList();
+        _repoProjects[repoName] = Directory.Exists(dir)
+            ? [.. Directory.GetFiles(dir, "*.csproj", SearchOption.AllDirectories)
+                .OrderBy(p => p)
+                .Select(p => new ProjectInfo(Path.GetFileNameWithoutExtension(p), p))
+                .Where(pi => !excluded.Any(e => pi.Name.Contains(e, StringComparison.OrdinalIgnoreCase)))]
+            : [];
+    }
+
+    private BuildMode GetBuildMode(string repoName) =>
+        _repoBuildFlags.TryGetValue(repoName, out var m) ? m : BuildMode.Ren;
+
+    private void SetBuildMode(string repoName, BuildMode mode) =>
+        _repoBuildFlags[repoName] = mode;
+
+    private bool IsCsprojRunning(string csprojPath) =>
+        _apps.Any(a => a.IsRunning &&
+            string.Equals(Scan.GetById(a.Id)?.CsprojPath, csprojPath, StringComparison.OrdinalIgnoreCase));
+
+    private Task BuildProject(string csprojPath, string repoName) =>
+        BuildProjectCore(csprojPath, repoName);
+
+    private async Task BuildAll(string repoName)
+    {
+        if (!_repoProjects.TryGetValue(repoName, out var projects)) return;
+        var toBuild = projects.Where(p => !IsCsprojRunning(p.Path)).ToList();
+        if (toBuild.Count == 0) return;
+        await Task.WhenAll(toBuild.Select(p => BuildProjectCore(p.Path, repoName)));
+    }
+
+    private async Task BuildProjectCore(string csprojPath, string repoName)
+    {
+        if (!_buildStates.TryGetValue(csprojPath, out var state))
+            _buildStates[csprojPath] = state = new BuildState();
+        if (state.IsBuilding) return;
+
+        state.Lines.Clear();
+        state.Status     = "";
+        state.IsBuilding = true;
+        _expandedBuildRepos.Add(repoName);
+        await InvokeAsync(StateHasChanged);
+
+        var bm     = GetBuildMode(repoName);
+        var target = new RepoBuildTarget
+        {
+            RepoName = Path.GetFileNameWithoutExtension(csprojPath),
+            SlnPath  = csprojPath,
+        };
+        var flags = new BuildFlags
+        {
+            NoRestore   = bm == BuildMode.Snabb,
+            NoAnalyzers = bm != BuildMode.Normal,
+            NoDocs      = bm != BuildMode.Normal,
+        };
+
+        await Build.BuildAsync(
+            [target], flags,
+            onProgress:   (__, status) => { state.Status = status; _ = InvokeAsync(StateHasChanged); },
+            onOutputLine: (__, line) =>
+            {
+                state.Lines.Add(line);
+                if (state.Lines.Count > 500) state.Lines.RemoveAt(0);
+                _ = InvokeAsync(StateHasChanged);
+            },
+            _cts.Token);
+
+        state.IsBuilding = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private Task BuildAllRepos() =>
+        Task.WhenAll(_groups.Select(r => BuildAll(r)));
+
+    private void ToggleBuildOutput(string csprojPath)
+    {
+        if (!_expandedBuildOutputs.Remove(csprojPath))
+            _expandedBuildOutputs.Add(csprojPath);
+    }
+
     // ── Model types ────────────────────────────────────────────────────────────
 
     private class AppViewModel
@@ -642,10 +843,20 @@
 
     private class ConsoleState : IDisposable
     {
-        public List<string>          Lines  { get; } = new();
-        public int                   Offset { get; set; }
-        public CancellationTokenSource Cts  { get; } = new();
+        public List<string>            Lines  { get; } = new();
+        public int                     Offset { get; set; }
+        public CancellationTokenSource Cts    { get; } = new();
         public void Dispose() => Cts.Cancel();
     }
 
+    private record ProjectInfo(string Name, string Path);
+
+    private class BuildState
+    {
+        public bool         IsBuilding { get; set; }
+        public string       Status     { get; set; } = "";
+        public List<string> Lines      { get; } = [];
+    }
+
+    private enum BuildMode { Snabb, Ren, Normal }
 }

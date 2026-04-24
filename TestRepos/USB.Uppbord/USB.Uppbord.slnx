@@ -2,4 +2,6 @@
   <Project Path="USB.Uppbord.Host.WebApi/USB.Uppbord.Host.WebApi.csproj" />
   <Project Path="USB.Uppbord.Host.NSB/USB.Uppbord.Host.NSB.csproj" />
   <Project Path="USB.Uppbord.Host.Hangfire/USB.Uppbord.Host.Hangfire.csproj" />
+  <Project Path="USB.Uppbord.Domain/USB.Uppbord.Domain.csproj" />
+  <Project Path="USB.Uppbord.Application/USB.Uppbord.Application.csproj" />
 </Solution>

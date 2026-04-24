@@ -1,4 +1,6 @@
 <Solution>
   <Project Path="Support.Host/Support.Host.csproj" />
   <Project Path="Support.IGUN.Host/Support.IGUN.Host.csproj" />
+  <Project Path="USB.Support.Domain/USB.Support.Domain.csproj" />
+  <Project Path="USB.Support.Application/USB.Support.Application.csproj" />
 </Solution>

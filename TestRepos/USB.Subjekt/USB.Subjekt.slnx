@@ -1,4 +1,7 @@
 <Solution>
   <Project Path="USB.Subjekt.Host.WebApi/USB.Subjekt.Host.WebApi.csproj" />
   <Project Path="USB.Subjekt.Host.NSB/USB.Subjekt.Host.NSB.csproj" />
+  <Project Path="USB.Subjekt.Domain/USB.Subjekt.Domain.csproj" />
+  <Project Path="USB.Subjekt.Application/USB.Subjekt.Application.csproj" />
+  <Project Path="USB.Subjekt.Infrastructure/USB.Subjekt.Infrastructure.csproj" />
 </Solution>

@@ -322,6 +322,19 @@ app.MapGet("/api/apps/git-checkout-all", async (HttpContext ctx, AppScanService 
     await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
 });
 
+// ─── Repos: list projects ─────────────────────────────────────────────────────
+
+app.MapGet("/api/repos/{repoName}/projects", (string repoName, ISettingsService s) =>
+{
+    var dir = Path.Combine(s.Settings.RepoRootPath, repoName);
+    if (!Directory.Exists(dir)) return Results.NotFound();
+    var projects = Directory.GetFiles(dir, "*.csproj", SearchOption.AllDirectories)
+        .OrderBy(p => p)
+        .Select(p => new { name = Path.GetFileNameWithoutExtension(p), path = p })
+        .ToList();
+    return Results.Ok(projects);
+});
+
 // ─── Build ────────────────────────────────────────────────────────────────────
 
 app.MapPost("/api/build/start", async (HttpContext ctx, BuildStartRequest req, IBuildService build, ISettingsService s) =>
