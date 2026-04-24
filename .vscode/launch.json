@@ -3,25 +3,17 @@
   "configurations": [
     {
       "name": "BengiDevTools (dotnet run)",
-      "type": "dotnet",
+      "type": "coreclr",
       "request": "launch",
-      "projectPath": "${workspaceFolder}/BengiDevTools/BengiDevTools.csproj",
-      "launchSettingsProfile": "http",
+      "preLaunchTask": "build BengiDevTools",
+      "program": "${workspaceFolder}/BengiDevTools/bin/Debug/net10.0/BengiDevTools.dll",
+      "cwd": "${workspaceFolder}/BengiDevTools",
       "console": "integratedTerminal",
       "stopAtEntry": false,
-      "preLaunchTask": "build"
-    },
-    {
-      "name": "Attach (välj process)",
-      "type": "dotnet",
-      "request": "attach",
-      "processId": "${command:pickProcess}",
-      "justMyCode": false,
-      "enableStepFiltering": false,
-      "symbolOptions": {
-        "searchPaths": [],
-        "searchMicrosoftSymbolServer": false,
-        "searchNuGetOrgSymbolServer": false
+      "serverReadyAction": {
+        "action": "openSimpleBrowser",
+        "pattern": "Now listening on: (https?://\\S+)",
+        "uriFormat": "%s"
       }
     }
   ]
