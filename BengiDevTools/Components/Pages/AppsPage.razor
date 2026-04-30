@@ -77,6 +77,10 @@
                 <option value="3">3 parallellt</option>
                 <option value="4">4 parallellt</option>
             </select>
+            @if (_buildStates.Values.Any(s => s.IsBuilding))
+            {
+                <button class="btn sm danger" @onclick="CancelAllBuilds" title="Avbryt alla byggen">✕ Avbryt alla</button>
+            }
             <button class="btn sm" @onclick="() => _expandedBuildRepos.Clear()"
                     title="Kollaps alla bygg-sektioner" disabled="@(_expandedBuildRepos.Count == 0)">▲ Kollaps</button>
         </div>
@@ -221,6 +225,10 @@
                                 @(slnBs.IsBuilding ? "⟳" : slnBs.Status == "OK" ? "✅" : slnBs.Status == "FAILED" ? "❌" : slnBs.Status)
                             </span>
                             <button class="btn sm" @onclick="() => ToggleBuildOutput(slnKey)">@(showSlnLog ? "▲" : "log")</button>
+                            @if (slnBs.IsBuilding)
+                            {
+                                <button class="btn sm danger" @onclick="() => slnBs.Cts?.Cancel()" title="Avbryt bygge">✕</button>
+                            }
                         }
                     </div>
                     @if (showSlnLog && slnBs is not null)
@@ -251,6 +259,7 @@
                                 @if (bs?.IsBuilding == true)
                                 {
                                     <span class="status-spinner" style="font-size:12px">⟳</span>
+                                    <button class="btn sm danger" @onclick="() => bs.Cts?.Cancel()" title="Avbryt bygge">✕</button>
                                 }
                                 <span style="font-family:var(--mono);color:@nc2">@proj.Name</span>
                                 @if (isRunning)
@@ -382,8 +391,9 @@
     private readonly Dictionary<string, List<ProjectInfo>> _repoProjects         = new();
     private readonly Dictionary<string, BuildState>        _buildStates          = new();
     private readonly Dictionary<string, BuildMode>          _repoBuildFlags       = new();
-    private BuildMode _globalBuildMode  = BuildMode.Ren;
-    private int       _globalMaxParallel = 2;
+    private BuildMode                    _globalBuildMode   = BuildMode.Ren;
+    private int                          _globalMaxParallel = 2;
+    private CancellationTokenSource?     _buildAllCts;
 
     // LocalUser modal
     private string? _localUserEditId;
@@ -820,6 +830,7 @@
         state.Lines.Clear();
         state.Status     = "";
         state.IsBuilding = true;
+        state.Cts        = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
         _expandedBuildOutputs.Add(slnPath);
         await InvokeAsync(StateHasChanged);
 
@@ -831,17 +842,21 @@
             NoDocs      = bm != BuildMode.Normal,
         };
 
-        await Build.BuildAsync(
-            [new RepoBuildTarget { RepoName = repoName, SlnPath = slnPath }],
-            flags,
-            onProgress:   (__, status) => { state.Status = status; _ = InvokeAsync(StateHasChanged); },
-            onOutputLine: (__, line) =>
-            {
-                state.Lines.Add(line);
-                if (state.Lines.Count > 500) state.Lines.RemoveAt(0);
-                _ = InvokeAsync(StateHasChanged);
-            },
-            _cts.Token);
+        try
+        {
+            await Build.BuildAsync(
+                [new RepoBuildTarget { RepoName = repoName, SlnPath = slnPath }],
+                flags,
+                onProgress:   (__, status) => { state.Status = status; _ = InvokeAsync(StateHasChanged); },
+                onOutputLine: (__, line) =>
+                {
+                    state.Lines.Add(line);
+                    if (state.Lines.Count > 500) state.Lines.RemoveAt(0);
+                    _ = InvokeAsync(StateHasChanged);
+                },
+                state.Cts.Token);
+        }
+        catch (OperationCanceledException) { state.Status = "Avbruten"; }
 
         state.IsBuilding = false;
         _expandedBuildOutputs.Remove(slnPath);
@@ -868,6 +883,7 @@
         state.Lines.Clear();
         state.Status     = "";
         state.IsBuilding = true;
+        state.Cts        = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
         _expandedBuildRepos.Add(repoName);
         await InvokeAsync(StateHasChanged);
 
@@ -884,16 +900,20 @@
             NoDocs      = bm != BuildMode.Normal,
         };
 
-        await Build.BuildAsync(
-            [target], flags,
-            onProgress:   (__, status) => { state.Status = status; _ = InvokeAsync(StateHasChanged); },
-            onOutputLine: (__, line) =>
-            {
-                state.Lines.Add(line);
-                if (state.Lines.Count > 500) state.Lines.RemoveAt(0);
-                _ = InvokeAsync(StateHasChanged);
-            },
-            _cts.Token);
+        try
+        {
+            await Build.BuildAsync(
+                [target], flags,
+                onProgress:   (__, status) => { state.Status = status; _ = InvokeAsync(StateHasChanged); },
+                onOutputLine: (__, line) =>
+                {
+                    state.Lines.Add(line);
+                    if (state.Lines.Count > 500) state.Lines.RemoveAt(0);
+                    _ = InvokeAsync(StateHasChanged);
+                },
+                state.Cts.Token);
+        }
+        catch (OperationCanceledException) { state.Status = "Avbruten"; }
 
         state.IsBuilding = false;
         await InvokeAsync(StateHasChanged);
@@ -901,13 +921,26 @@
 
     private async Task BuildAllRepos()
     {
+        _buildAllCts?.Dispose();
+        _buildAllCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
         var sem = new SemaphoreSlim(_globalMaxParallel);
-        await Task.WhenAll(_groups.Select(async r =>
+        try
         {
-            await sem.WaitAsync(_cts.Token);
-            try   { await BuildAll(r, _globalBuildMode); }
-            finally { sem.Release(); }
-        }));
+            await Task.WhenAll(_groups.Select(async r =>
+            {
+                await sem.WaitAsync(_buildAllCts.Token);
+                try   { await BuildAll(r, _globalBuildMode); }
+                finally { sem.Release(); }
+            }));
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private void CancelAllBuilds()
+    {
+        _buildAllCts?.Cancel();
+        foreach (var s in _buildStates.Values)
+            s.Cts?.Cancel();
     }
 
     private void ToggleBuildOutput(string csprojPath)
@@ -947,9 +980,10 @@
 
     private class BuildState
     {
-        public bool         IsBuilding { get; set; }
-        public string       Status     { get; set; } = "";
-        public List<string> Lines      { get; } = [];
+        public bool                        IsBuilding { get; set; }
+        public string                      Status     { get; set; } = "";
+        public List<string>                Lines      { get; } = [];
+        public CancellationTokenSource?    Cts        { get; set; }
     }
 
     private enum BuildMode { Snabb, Ren, Normal }
