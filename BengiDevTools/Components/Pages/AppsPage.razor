@@ -618,6 +618,7 @@
         var toStart = _apps.Where(a => a.Checked && !a.IsRunning).ToList();
         foreach (var app in toStart) _busyIds.Add(app.Id);
         StateHasChanged();
+        await Task.Yield();
 
         using var renderTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(300));
         var renderTask = Task.Run(async () =>
