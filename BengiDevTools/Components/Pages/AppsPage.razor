@@ -635,7 +635,12 @@
             finally
             {
                 sem.Release();
-                await InvokeAsync(() => _busyIds.Remove(app.Id));
+                await InvokeAsync(() =>
+                {
+                    _busyIds.Remove(app.Id);
+                    var vm = _apps.FirstOrDefault(a => a.Id == app.Id);
+                    if (vm is not null) vm.IsRunning = true;
+                });
             }
         }));
 
