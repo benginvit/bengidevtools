@@ -57,8 +57,26 @@
             </div>
         </div>
         <!-- Bygg header -->
-        <div style="padding:6px 8px;border-right:1px solid #333;display:flex;align-items:center;gap:4px">
+        <div style="padding:6px 8px;border-right:1px solid #333;display:flex;align-items:center;gap:4px;flex-wrap:wrap">
             <button class="btn sm" @onclick="BuildAllRepos" disabled="@(_apps.Count == 0)">Bygg alla</button>
+            <button class="btn sm @(_globalBuildMode == BuildMode.Snabb ? "primary" : "")"
+                    title="Snabb: --no-restore, --no-analyzers, --no-docs"
+                    @onclick="() => _globalBuildMode = BuildMode.Snabb">Snabb</button>
+            <button class="btn sm @(_globalBuildMode == BuildMode.Ren ? "primary" : "")"
+                    title="Ren: --no-restore, utan analyzers/docs"
+                    @onclick="() => _globalBuildMode = BuildMode.Ren">Ren</button>
+            <button class="btn sm @(_globalBuildMode == BuildMode.Normal ? "primary" : "")"
+                    title="Normal: fullständigt bygge"
+                    @onclick="() => _globalBuildMode = BuildMode.Normal">Normal</button>
+            <select style="font-size:11px;background:var(--surface2);color:var(--text);border:1px solid #444;border-radius:4px;padding:2px 4px"
+                    title="Max parallella byggen"
+                    value="@_globalMaxParallel"
+                    @onchange="e => _globalMaxParallel = int.Parse(e.Value!.ToString()!)">
+                <option value="1">1 i taget</option>
+                <option value="2">2 parallellt</option>
+                <option value="3">3 parallellt</option>
+                <option value="4">4 parallellt</option>
+            </select>
             <button class="btn sm" @onclick="() => _expandedBuildRepos.Clear()"
                     title="Kollaps alla bygg-sektioner" disabled="@(_expandedBuildRepos.Count == 0)">▲ Kollaps</button>
         </div>
@@ -342,6 +360,8 @@
     private readonly Dictionary<string, List<ProjectInfo>> _repoProjects         = new();
     private readonly Dictionary<string, BuildState>        _buildStates          = new();
     private readonly Dictionary<string, BuildMode>          _repoBuildFlags       = new();
+    private BuildMode _globalBuildMode  = BuildMode.Ren;
+    private int       _globalMaxParallel = 2;
 
     // LocalUser modal
     private string? _localUserEditId;
@@ -765,15 +785,15 @@
     private Task BuildProject(string csprojPath, string repoName) =>
         BuildProjectCore(csprojPath, repoName);
 
-    private async Task BuildAll(string repoName)
+    private async Task BuildAll(string repoName, BuildMode? modeOverride = null)
     {
         if (!_repoProjects.TryGetValue(repoName, out var projects)) return;
         var toBuild = projects.Where(p => !IsCsprojRunning(p.Path)).ToList();
         if (toBuild.Count == 0) return;
-        await Task.WhenAll(toBuild.Select(p => BuildProjectCore(p.Path, repoName)));
+        await Task.WhenAll(toBuild.Select(p => BuildProjectCore(p.Path, repoName, modeOverride)));
     }
 
-    private async Task BuildProjectCore(string csprojPath, string repoName)
+    private async Task BuildProjectCore(string csprojPath, string repoName, BuildMode? modeOverride = null)
     {
         if (!_buildStates.TryGetValue(csprojPath, out var state))
             _buildStates[csprojPath] = state = new BuildState();
@@ -785,7 +805,7 @@
         _expandedBuildRepos.Add(repoName);
         await InvokeAsync(StateHasChanged);
 
-        var bm     = GetBuildMode(repoName);
+        var bm     = modeOverride ?? GetBuildMode(repoName);
         var target = new RepoBuildTarget
         {
             RepoName = Path.GetFileNameWithoutExtension(csprojPath),
@@ -813,8 +833,16 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private Task BuildAllRepos() =>
-        Task.WhenAll(_groups.Select(r => BuildAll(r)));
+    private async Task BuildAllRepos()
+    {
+        var sem = new SemaphoreSlim(_globalMaxParallel);
+        await Task.WhenAll(_groups.Select(async r =>
+        {
+            await sem.WaitAsync(_cts.Token);
+            try   { await BuildAll(r, _globalBuildMode); }
+            finally { sem.Release(); }
+        }));
+    }
 
     private void ToggleBuildOutput(string csprojPath)
     {
