@@ -618,22 +618,28 @@
         var toStart = _apps.Where(a => a.Checked && !a.IsRunning).ToList();
         foreach (var app in toStart) _busyIds.Add(app.Id);
         StateHasChanged();
-        await Task.Yield();
+
+        using var renderTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(300));
+        var renderTask = Task.Run(async () =>
+        {
+            while (_starting && await renderTimer.WaitForNextTickAsync(_cts.Token).ConfigureAwait(false))
+                await InvokeAsync(StateHasChanged);
+        });
+
         var sem = new SemaphoreSlim(3);
         await Task.WhenAll(toStart.Select(async app =>
         {
             await sem.WaitAsync(_cts.Token);
-            try
-            {
-                await Proc.StartAsync(app.Id, GetCsprojPath(app.Id), app.LaunchProfile);
-            }
+            try   { await Proc.StartAsync(app.Id, GetCsprojPath(app.Id), app.LaunchProfile); }
             finally
             {
                 sem.Release();
-                await InvokeAsync(() => { _busyIds.Remove(app.Id); StateHasChanged(); });
+                await InvokeAsync(() => _busyIds.Remove(app.Id));
             }
         }));
+
         _starting = false;
+        await renderTask;
         await InvokeAsync(StateHasChanged);
     }
 
