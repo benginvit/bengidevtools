@@ -615,55 +615,26 @@
     private async Task StartSelected()
     {
         _starting = true;
-        var toStart = _apps.Where(a => a.Checked && !a.IsRunning).ToList();
-        foreach (var app in toStart) _busyIds.Add(app.Id);
         StateHasChanged();
-        await Task.Yield();
 
-        using var renderTimer = new PeriodicTimer(TimeSpan.FromMilliseconds(300));
-        var renderTask = Task.Run(async () =>
-        {
-            while (_starting && await renderTimer.WaitForNextTickAsync(_cts.Token).ConfigureAwait(false))
-                await InvokeAsync(StateHasChanged);
-        });
-
+        var toStart = _apps.Where(a => a.Checked && !a.IsRunning).ToList();
         var sem = new SemaphoreSlim(3);
         try
         {
             await Task.WhenAll(toStart.Select(async app =>
             {
-                try
-                {
-                    await sem.WaitAsync(_cts.Token);
-                    try   { await Proc.StartAsync(app.Id, GetCsprojPath(app.Id), app.LaunchProfile); }
-                    finally
-                    {
-                        sem.Release();
-                        await InvokeAsync(() =>
-                        {
-                            _busyIds.Remove(app.Id);
-                            var vm = _apps.FirstOrDefault(a => a.Id == app.Id);
-                            if (vm is not null) vm.IsRunning = true;
-                        });
-                    }
-                }
-                catch
-                {
-                    await InvokeAsync(() => _busyIds.Remove(app.Id));
-                }
+                await sem.WaitAsync(_cts.Token);
+                try   { await Proc.StartAsync(app.Id, GetCsprojPath(app.Id), app.LaunchProfile); }
+                catch { }
+                finally { sem.Release(); }
             }));
         }
         catch { }
         finally
         {
             _starting = false;
-            await InvokeAsync(() =>
-            {
-                foreach (var app in toStart) _busyIds.Remove(app.Id);
-            });
+            await InvokeAsync(StateHasChanged);
         }
-        await renderTask;
-        await InvokeAsync(StateHasChanged);
     }
 
     private async Task StopAll()
