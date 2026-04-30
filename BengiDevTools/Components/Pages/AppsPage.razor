@@ -820,7 +820,7 @@
         state.Lines.Clear();
         state.Status     = "";
         state.IsBuilding = true;
-        _expandedBuildRepos.Add(repoName);
+        _expandedBuildOutputs.Add(slnPath);
         await InvokeAsync(StateHasChanged);
 
         var bm    = modeOverride ?? GetBuildMode(repoName);
@@ -844,6 +844,7 @@
             _cts.Token);
 
         state.IsBuilding = false;
+        _expandedBuildOutputs.Remove(slnPath);
         await InvokeAsync(StateHasChanged);
     }
 
