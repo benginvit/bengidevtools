@@ -273,8 +273,8 @@ public partial class ProcessService : IProcessService
 
         var projectDir = Path.GetDirectoryName(csprojPath);
 
-        FreeOccupiedPorts(projectDir, launchProfile);
-        FreeHealthCheckPort(projectDir);
+        await FreeOccupiedPortsAsync(projectDir, launchProfile);
+        await FreeHealthCheckPortAsync(projectDir);
 
         var args = $"run --no-build --project \"{csprojPath}\"";
         if (launchProfile is not null) args += $" --launch-profile \"{launchProfile}\"";
@@ -369,7 +369,7 @@ public partial class ProcessService : IProcessService
 
     private IEnumerable<ScannedApp> _lastApps = [];
 
-    private static void FreeOccupiedPorts(string? projectDir, string? launchProfile)
+    private static async Task FreeOccupiedPortsAsync(string? projectDir, string? launchProfile)
     {
         if (projectDir is null || launchProfile is null) return;
         var path = Path.Combine(projectDir, "Properties", "launchSettings.json");
@@ -384,14 +384,14 @@ public partial class ProcessService : IProcessService
                 if (!p.Value.TryGetProperty("applicationUrl", out var urlProp)) return;
                 foreach (var segment in (urlProp.GetString() ?? "").Split(';'))
                     if (Uri.TryCreate(segment.Trim(), UriKind.Absolute, out var uri))
-                        KillPort(uri.Port);
+                        await KillPortAsync(uri.Port);
                 return;
             }
         }
         catch { }
     }
 
-    private static void FreeHealthCheckPort(string? projectDir)
+    private static async Task FreeHealthCheckPortAsync(string? projectDir)
     {
         if (projectDir is null) return;
         foreach (var filename in new[] { "appsettings.Development.json", "appsettings.json" })
@@ -405,7 +405,7 @@ public partial class ProcessService : IProcessService
                     hc.TryGetProperty("Port", out var portProp) &&
                     portProp.TryGetInt32(out var port) && port > 0)
                 {
-                    KillPort(port);
+                    await KillPortAsync(port);
                     return;
                 }
             }
@@ -413,7 +413,7 @@ public partial class ProcessService : IProcessService
         }
     }
 
-    private static void KillPort(int port)
+    private static async Task KillPortAsync(int port)
     {
         var inUse = IPGlobalProperties.GetIPGlobalProperties()
             .GetActiveTcpListeners()
@@ -424,8 +424,13 @@ public partial class ProcessService : IProcessService
         {
             try
             {
-                Process.Start(new ProcessStartInfo("/bin/bash", $"-c \"fuser -k {port}/tcp 2>/dev/null\"")
-                    { UseShellExecute = false, CreateNoWindow = true })?.WaitForExit(2000);
+                var proc = Process.Start(new ProcessStartInfo("/bin/bash", $"-c \"fuser -k {port}/tcp 2>/dev/null\"")
+                    { UseShellExecute = false, CreateNoWindow = true });
+                if (proc is not null)
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                    await proc.WaitForExitAsync(cts.Token).ConfigureAwait(false);
+                }
             }
             catch { }
         }
@@ -433,10 +438,14 @@ public partial class ProcessService : IProcessService
         {
             try
             {
-                // netstat to find PID, then taskkill
                 var psi = new ProcessStartInfo("cmd", $"/c for /f \"tokens=5\" %a in ('netstat -aon ^| findstr :{port} ^| findstr LISTENING') do taskkill /F /PID %a")
                     { UseShellExecute = false, CreateNoWindow = true };
-                Process.Start(psi)?.WaitForExit(3000);
+                var proc = Process.Start(psi);
+                if (proc is not null)
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+                    await proc.WaitForExitAsync(cts.Token).ConfigureAwait(false);
+                }
             }
             catch { }
         }
