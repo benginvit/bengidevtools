@@ -628,23 +628,40 @@
         });
 
         var sem = new SemaphoreSlim(3);
-        await Task.WhenAll(toStart.Select(async app =>
+        try
         {
-            await sem.WaitAsync(_cts.Token);
-            try   { await Proc.StartAsync(app.Id, GetCsprojPath(app.Id), app.LaunchProfile); }
-            finally
+            await Task.WhenAll(toStart.Select(async app =>
             {
-                sem.Release();
-                await InvokeAsync(() =>
+                try
                 {
-                    _busyIds.Remove(app.Id);
-                    var vm = _apps.FirstOrDefault(a => a.Id == app.Id);
-                    if (vm is not null) vm.IsRunning = true;
-                });
-            }
-        }));
-
-        _starting = false;
+                    await sem.WaitAsync(_cts.Token);
+                    try   { await Proc.StartAsync(app.Id, GetCsprojPath(app.Id), app.LaunchProfile); }
+                    finally
+                    {
+                        sem.Release();
+                        await InvokeAsync(() =>
+                        {
+                            _busyIds.Remove(app.Id);
+                            var vm = _apps.FirstOrDefault(a => a.Id == app.Id);
+                            if (vm is not null) vm.IsRunning = true;
+                        });
+                    }
+                }
+                catch
+                {
+                    await InvokeAsync(() => _busyIds.Remove(app.Id));
+                }
+            }));
+        }
+        catch { }
+        finally
+        {
+            _starting = false;
+            await InvokeAsync(() =>
+            {
+                foreach (var app in toStart) _busyIds.Remove(app.Id);
+            });
+        }
         await renderTask;
         await InvokeAsync(StateHasChanged);
     }
