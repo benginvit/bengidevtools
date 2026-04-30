@@ -194,6 +194,10 @@
                 <!-- ── Bygg column ── -->
                 <div style="border-right:1px solid #2a2a2a">
                     @{ var repoExpanded = _expandedBuildRepos.Contains(repoName); }
+                    @{ var slnDir = Path.Combine(Settings.Settings.RepoRootPath, repoName);
+                       var slnKey = FindSln(slnDir) ?? "";
+                       var slnBs  = slnKey != "" ? _buildStates.GetValueOrDefault(slnKey) : null;
+                       var showSlnLog = slnKey != "" && _expandedBuildOutputs.Contains(slnKey); }
                     <div style="display:flex;gap:3px;padding:3px 6px;font-size:10px;background:#1a1a1a;border-bottom:1px solid #222;min-height:28px;align-items:center">
                         <button class="btn sm" title="Visa/dölj projekt"
                                 @onclick="() => { if (!_expandedBuildRepos.Remove(repoName)) _expandedBuildRepos.Add(repoName); }">
@@ -211,7 +215,25 @@
                                 @onclick="() => SetBuildMode(repoName, BuildMode.Normal)">Normal</button>
                         <span style="color:#444;margin:0 1px">|</span>
                         <button class="btn sm" @onclick="() => BuildAll(repoName)">Bygg alla</button>
+                        @if (slnBs is not null)
+                        {
+                            <span style="color:@(slnBs.Status == "OK" ? "var(--green)" : slnBs.Status == "FAILED" ? "var(--red)" : "var(--yellow)")">
+                                @(slnBs.IsBuilding ? "⟳" : slnBs.Status == "OK" ? "✅" : slnBs.Status == "FAILED" ? "❌" : slnBs.Status)
+                            </span>
+                            <button class="btn sm" @onclick="() => ToggleBuildOutput(slnKey)">@(showSlnLog ? "▲" : "log")</button>
+                        }
                     </div>
+                    @if (showSlnLog && slnBs is not null)
+                    {
+                        <div class="app-log-window" style="margin:0 4px 4px;max-height:200px">
+                            <div class="build-log">
+                                @foreach (var line in slnBs.Lines)
+                                {
+                                    <div style="color:@ColorLine(line)">@(string.IsNullOrEmpty(line) ? " " : line)</div>
+                                }
+                            </div>
+                        </div>
+                    }
                     @if (repoExpanded && _repoProjects.TryGetValue(repoName, out var projects))
                     {
                         @foreach (var proj in projects)
@@ -787,10 +809,53 @@
 
     private async Task BuildAll(string repoName, BuildMode? modeOverride = null)
     {
-        if (!_repoProjects.TryGetValue(repoName, out var projects)) return;
-        var toBuild = projects.Where(p => !IsCsprojRunning(p.Path)).ToList();
-        if (toBuild.Count == 0) return;
-        await Task.WhenAll(toBuild.Select(p => BuildProjectCore(p.Path, repoName, modeOverride)));
+        var repoDir = Path.Combine(Settings.Settings.RepoRootPath, repoName);
+        var slnPath = FindSln(repoDir);
+        if (slnPath is null) return;
+
+        if (!_buildStates.TryGetValue(slnPath, out var state))
+            _buildStates[slnPath] = state = new BuildState();
+        if (state.IsBuilding) return;
+
+        state.Lines.Clear();
+        state.Status     = "";
+        state.IsBuilding = true;
+        _expandedBuildRepos.Add(repoName);
+        await InvokeAsync(StateHasChanged);
+
+        var bm    = modeOverride ?? GetBuildMode(repoName);
+        var flags = new BuildFlags
+        {
+            NoRestore   = bm == BuildMode.Snabb,
+            NoAnalyzers = bm != BuildMode.Normal,
+            NoDocs      = bm != BuildMode.Normal,
+        };
+
+        await Build.BuildAsync(
+            [new RepoBuildTarget { RepoName = repoName, SlnPath = slnPath }],
+            flags,
+            onProgress:   (__, status) => { state.Status = status; _ = InvokeAsync(StateHasChanged); },
+            onOutputLine: (__, line) =>
+            {
+                state.Lines.Add(line);
+                if (state.Lines.Count > 500) state.Lines.RemoveAt(0);
+                _ = InvokeAsync(StateHasChanged);
+            },
+            _cts.Token);
+
+        state.IsBuilding = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private static string? FindSln(string dir)
+    {
+        foreach (var pattern in new[] { "*.sln", "*.slnx" })
+        {
+            var f = Directory.GetFiles(dir, pattern, SearchOption.TopDirectoryOnly).FirstOrDefault()
+                 ?? Directory.GetFiles(dir, pattern, SearchOption.AllDirectories).FirstOrDefault();
+            if (f is not null) return f;
+        }
+        return null;
     }
 
     private async Task BuildProjectCore(string csprojPath, string repoName, BuildMode? modeOverride = null)
