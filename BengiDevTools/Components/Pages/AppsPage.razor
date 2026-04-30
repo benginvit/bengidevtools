@@ -22,6 +22,9 @@
                     @if (_stopping) { <span class="status-spinner">⟳</span> } else { <text>■</text> }
                     Stoppa alla
                 </button>
+                <button class="btn sm" @onclick="ClearAllConsoles"
+                        disabled="@(_consoles.Count == 0)"
+                        title="Rensa alla konsoler">✕ Konsoler</button>
                 <div style="position:relative">
                     <button class="btn sm" @onclick="() => _showScanMenu = !_showScanMenu"
                             title="Scanna och exportera">•••</button>
@@ -722,6 +725,11 @@
             }
             try { await Task.Delay(800, ct); } catch (OperationCanceledException) { break; }
         }
+    }
+
+    private void ClearAllConsoles()
+    {
+        foreach (var state in _consoles.Values) state.Lines.Clear();
     }
 
     private void ClearConsole(string id)
