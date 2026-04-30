@@ -127,10 +127,9 @@
                     @foreach (var app in repoApps)
                     {
                         var isBusy     = _busyIds.Contains(app.Id);
-                        var dotClass   = isBusy ? "starting" : app.HasException ? "exception" : app.IsExternal ? "external" : app.IsRunning ? "running" : "stopped";
+                        var dotClass   = isBusy ? "starting" : app.HasException ? "exception" : app.IsRunning ? "running" : "stopped";
                         var dotTitle   = isBusy          ? "Startar…" :
                                          app.HasException ? "Exception!" :
-                                         app.IsExternal   ? "Externt startad" :
                                          app.IsRunning    ? $"PID {app.Pid} — klicka för att kopiera" : "Stoppad";
                         var isExpanded = _consoles.ContainsKey(app.Id);
                         var consoleId  = "con-" + app.Id.Replace('/', '-');
