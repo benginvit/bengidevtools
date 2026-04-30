@@ -235,7 +235,7 @@
                     {
                         <div class="app-log-window" style="margin:0 4px 4px;max-height:200px">
                             <div class="build-log">
-                                @foreach (var line in slnBs.Lines)
+                                @foreach (var line in slnBs.Lines.ToList())
                                 {
                                     <div style="color:@ColorLine(line)">@(string.IsNullOrEmpty(line) ? " " : line)</div>
                                 }
@@ -281,7 +281,7 @@
                                         <button class="btn sm" @onclick="() => { bs.Lines.Clear(); }">Rensa</button>
                                     </div>
                                     <div class="build-log">
-                                        @foreach (var line in bs.Lines)
+                                        @foreach (var line in bs.Lines.ToList())
                                         {
                                             <div style="color:@ColorLine(line)">@(string.IsNullOrEmpty(line) ? " " : line)</div>
                                         }
