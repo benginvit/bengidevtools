@@ -644,18 +644,35 @@
         _stopping = true;
         StateHasChanged();
         await Task.Yield();
+
         var toStop = _apps.Where(a => a.IsRunning).ToList();
-        await Task.WhenAll(toStop.Select(async app =>
+        try
         {
-            await Proc.StopAsync(app.Id);
-            app.IsRunning  = false;
-            app.IsExternal = false;
-            ClearConsole(app.Id);
+            await Task.WhenAll(toStop.Select(async app =>
+            {
+                try
+                {
+                    await Proc.StopAsync(app.Id);
+                }
+                catch { }
+                finally
+                {
+                    await InvokeAsync(() =>
+                    {
+                        app.IsRunning  = false;
+                        app.IsExternal = false;
+                        ClearConsole(app.Id);
+                    });
+                }
+            }));
+        }
+        catch { }
+        finally
+        {
+            _stopping = false;
+            _statusLog.Clear();
             await InvokeAsync(StateHasChanged);
-        }));
-        _stopping = false;
-        _statusLog.Clear();
-        await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task AppStart(AppViewModel app)
