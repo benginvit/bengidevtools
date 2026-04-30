@@ -11,17 +11,21 @@ public partial class ProcessService : IProcessService
     [GeneratedRegex(@"\w+Exception:|\bUnhandled\b|fail:|crit:", RegexOptions.IgnoreCase)]
     private static partial Regex ExceptionPattern();
 
-    private readonly Dictionary<string, Process>   _processes = new();
-    private readonly Dictionary<string, AppOutput> _outputs   = new();
-    private readonly Dictionary<string, int>       _externalPids = new(); // id → pid for externally detected
+    private readonly object                          _lock         = new();
+    private readonly Dictionary<string, Process>    _processes    = new();
+    private readonly Dictionary<string, AppOutput>  _outputs      = new();
+    private readonly Dictionary<string, int>        _externalPids = new(); // id → pid for externally detected
 
-    public bool IsRunning(string id) =>
-        _processes.TryGetValue(id, out var p) && !p.HasExited;
+    public bool IsRunning(string id)
+    {
+        lock (_lock) return _processes.TryGetValue(id, out var p) && !p.HasExited;
+    }
 
     public bool IsExternal(string id) => _externalPids.ContainsKey(id);
     public int GetPid(string id)
     {
-        if (_processes.TryGetValue(id, out var p) && !p.HasExited)
+        Process? p; lock (_lock) _processes.TryGetValue(id, out p);
+        if (p is not null && !p.HasExited)
         {
             // On Windows: dotnet run → MSBuild (intermediate) → App.dll (target).
             // Skip the child lookup and instead find the app process by project name in
@@ -119,7 +123,7 @@ public partial class ProcessService : IProcessService
     public Task DetectExternalAsync(IEnumerable<ScannedApp> apps)
     {
         _lastApps = apps.ToList();
-        var managedIds = new HashSet<string>(_processes.Keys);
+        HashSet<string> managedIds; lock (_lock) managedIds = new HashSet<string>(_processes.Keys);
 
         // Read listening ports and dotnet cmdlines once per poll — no .NET /proc access.
         _lastListeningPorts = ReadListeningPorts();
@@ -291,7 +295,7 @@ public partial class ProcessService : IProcessService
         psi.Environment.Remove("ASPNETCORE_URLS");
 
         var proc = new Process { StartInfo = psi, EnableRaisingEvents = true };
-        proc.Exited += (_, _) => _processes.Remove(id);
+        proc.Exited += (_, _) => { lock (_lock) _processes.Remove(id); };
 
         proc.OutputDataReceived += (_, e) =>
         {
@@ -307,7 +311,7 @@ public partial class ProcessService : IProcessService
         proc.Start();
         proc.BeginOutputReadLine();
         proc.BeginErrorReadLine();
-        _processes[id] = proc;
+        lock (_lock) _processes[id] = proc;
 
         await Task.CompletedTask;
     }
@@ -339,7 +343,8 @@ public partial class ProcessService : IProcessService
             return;
         }
 
-        if (!_processes.TryGetValue(id, out var proc)) return;
+        Process? proc; lock (_lock) _processes.TryGetValue(id, out proc);
+        if (proc is null) return;
 
         // On Linux, dotnet run spawns the app as a child — kill it explicitly first
         if (OperatingSystem.IsLinux())
@@ -359,7 +364,7 @@ public partial class ProcessService : IProcessService
             await proc.WaitForExitAsync(cts.Token);
         }
         catch { }
-        _processes.Remove(id);
+        lock (_lock) _processes.Remove(id);
     }
 
     private IEnumerable<ScannedApp> _lastApps = [];

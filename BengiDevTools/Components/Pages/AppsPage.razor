@@ -184,7 +184,7 @@
                                     }
                                     else
                                     {
-                                        @foreach (var line in con.Lines)
+                                        @foreach (var line in con.Lines.ToList())
                                         {
                                             <div style="color:@ColorLine(line)">@(string.IsNullOrEmpty(line) ? " " : line)</div>
                                         }
@@ -619,11 +619,19 @@
         foreach (var app in toStart) _busyIds.Add(app.Id);
         StateHasChanged();
         await Task.Yield();
+        var sem = new SemaphoreSlim(3);
         await Task.WhenAll(toStart.Select(async app =>
         {
-            await Proc.StartAsync(app.Id, GetCsprojPath(app.Id), app.LaunchProfile);
-            _busyIds.Remove(app.Id);
-            await InvokeAsync(StateHasChanged);
+            await sem.WaitAsync(_cts.Token);
+            try
+            {
+                await Proc.StartAsync(app.Id, GetCsprojPath(app.Id), app.LaunchProfile);
+            }
+            finally
+            {
+                sem.Release();
+                await InvokeAsync(() => { _busyIds.Remove(app.Id); StateHasChanged(); });
+            }
         }));
         _starting = false;
         await InvokeAsync(StateHasChanged);
