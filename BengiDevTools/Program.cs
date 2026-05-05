@@ -17,6 +17,9 @@ builder.Services.AddHostedService<GitScanBackgroundService>();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+builder.WebHost.UseUrls("http://+:5050");
+
+
 var app = builder.Build();
 
 app.UseStaticFiles();
