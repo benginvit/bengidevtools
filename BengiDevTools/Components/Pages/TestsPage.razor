@@ -426,7 +426,7 @@
                 </div>
             }
             <div class="status-bar-log" id="testfall-log">
-                @foreach (var line in _log)
+                @foreach (var line in _log.AsEnumerable().Reverse())
                 {
                     <div style="color:@LogColor(line)">@line</div>
                 }
@@ -856,7 +856,6 @@
     private async Task LogAsync(string msg)
     {
         await InvokeAsync(() => { Log(msg); StateHasChanged(); });
-        try { await JS.InvokeVoidAsync("scrollToBottom", "testfall-log", _cts.Token); } catch { }
     }
 
     private static string LogColor(string line)
