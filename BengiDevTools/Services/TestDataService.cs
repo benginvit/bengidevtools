@@ -40,6 +40,7 @@ public class TestDataService(ISettingsService settings) : ITestDataService
         if (rows.Count == 0) return "";
 
         var sb = new StringBuilder();
+        sb.Append(SqlDeclarations);
         sb.AppendLine("IF OBJECT_ID('tempdb..#TestDataMPM') IS NOT NULL DROP TABLE #TestDataMPM");
         sb.AppendLine("CREATE TABLE #TestDataMPM (");
         sb.AppendLine("    DataSetId INT,");
@@ -121,8 +122,292 @@ public class TestDataService(ISettingsService settings) : ITestDataService
             sb.AppendLine(")");
         }
 
+        sb.Append(SqlDownstreamInserts);
         return sb.ToString();
     }
+
+    private const string SqlDeclarations =
+        """
+        DECLARE @DateNow AS date = FORMAT(getdate(), 'yyyyMMdd');
+        DECLARE @LastMonthFirstDay AS date = FORMAT(DATEADD(MONTH, DATEDIFF(MONTH, 0, CURRENT_TIMESTAMP) - 1, 0), 'yyyyMMdd');
+        DECLARE @LastMonthLastDay AS date = FORMAT(DATEADD(DAY, -1, DATEADD(MONTH, DATEDIFF(MONTH, 0, CURRENT_TIMESTAMP), 0)), 'yyyyMMdd');
+        DECLARE @Tomorrow DATE = DATEADD(DAY, 1, GETDATE());
+        DECLARE @Yesterday DATE = DATEADD(DAY, -1, GETDATE());
+        DECLARE @TenDaysAgo DATE = DATEADD(DAY, -10, GETDATE());
+
+        DECLARE @Inbetalningsbankgiro AS nvarchar(max) = '2505683';
+        DECLARE @InbetalningsKonto AS nvarchar(max) = '5841000001009823';
+
+        -- Inbetalningskanal
+        DECLARE @Danskebank AS INT = 3;
+        DECLARE @TempOutput TABLE (
+        	FordranMasterId INT,
+        	DataSetId BIGINT
+        	);
+
+        -- Subjekt metadata
+        DECLARE @BG AS nvarchar(max) = '5051-6822';
+        DECLARE @PG AS nvarchar(max) = '4803401-1';
+
+
+        """;
+
+    private const string SqlDownstreamInserts =
+        """
+
+        ----- PubliceraNyInbetalning
+        INSERT INTO [USB-Support].dbo.PubliceraNyInbetalning ([InbetalningsspecifikationReferenceId], [DataSetId], [Databeskrivning], [PubliceraNyInbetalning])
+        SELECT
+            t.InbetalningsspecifikationReferenceId,
+            t.DataSetId,
+            t.Databeskrivning,
+            (
+        		SELECT
+        			t.InbetalningsspecifikationReferenceId AS inbetalningsspecifikationReferenceId
+        			FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+        	) AS PubliceraNyInbetalning
+        FROM #TestDataMPM t
+        WHERE t.InbetalningsspecifikationReferenceId IS NOT NULL
+
+        ----- V2_Inbetalningsspecifikation
+        INSERT INTO [USB-Support].[Inbetalningsmodul].[V2_Inbetalningsspecifikation](InbetalningsspecifikationReferenceId, Belopp, Betalningsreferens, Referenskod, Inbetalningskonto, Inbetalningsbankgiro, Inbetalningsdatum, Inbetalningskanal, Meddelanden, Ursprungsbelopp, Ursprungsvaluta, Valutakurs, Inbetalningstyp, FinnsInbetalningsbild, SkapadDatum, Kontogrupp, Kallreferens)
+        SELECT
+            t.InbetalningsspecifikationReferenceId,
+            t.InbetalningBelopp,
+            t.InbetalningBetalreferens,
+            2 AS Referenskod,
+            @InbetalningsKonto AS Inbetalningskonto,
+            @Inbetalningsbankgiro AS Inbetalningsbankgiro,
+            @DateNow AS Inbetalningsdatum,
+            ISNULL(t.Inbetalningskanal, 1),
+            '' AS Meddelanden,
+            CAST(t.InbetalningBelopp AS Decimal(18, 2)) AS Ursprungsbelopp,
+        	'SEK',
+            CAST(1.00 AS Decimal(18, 2)) AS Valutakurs,
+            1 AS Inbetalningstyp,
+            0 AS FinnsInbetalningsbild,
+            @DateNow AS SkapadDatum,
+            t.InbetalningKontogrupp,
+        	'1' AS Kallreferens
+        FROM #TestDataMPM t
+        WHERE t.InbetalningsspecifikationReferenceId IS NOT NULL
+
+        ----- V2_Inbetalare
+        INSERT INTO [USB-Support].[Inbetalningsmodul].[V2_Inbetalare] ([InbetalareId],[Namn],[Adress1],[Adress2],[Postnummer],[Ort],[Land],[AvsandareBgPg],[InbetalningsspecifikationReferenceId],[InbetalareIdTyp])
+        SELECT
+            t.InbetalarePersonOrgNr AS InbetalareId,
+            t.InbetalareNamn,
+            t.InbetalareAdress1,
+            t.InbetalareAdress2,
+            t.InbetalarePostnummer,
+            t.InbetalareOrt,
+            t.InbetalareLand,
+            'BG' AS AvsandareBgPg,
+            t.InbetalningsspecifikationReferenceId,
+        	2
+        FROM #TestDataMPM t
+        WHERE t.InbetalningsspecifikationReferenceId IS NOT NULL
+
+        ----- tdl.Fordran
+        INSERT INTO [USB-RedovStaging].[tdl].[Fordran](ReferenceId, FordranId, PersonId, Penningklass, Betalreferens, Ocr, Saldo, Grundbelopp, [Status], Lopnummer, Uppdateringsnummer, Fakturanummer, Registreringsnummer, Forfallodatum, Transaktionsdatum, Beslutsdatum, Ursprungstabell, SkuldId, Skapandedatum, ModifiedDateTime, Fordranskategori)
+        	OUTPUT INSERTED.Id, INSERTED.FordranId INTO @TempOutput(FordranMasterId, DataSetId)
+        	SELECT
+        		t.FordranReferenceId AS ReferenceId,
+        		t.DataSetId AS FordranId,
+        		t.PersonId AS PersonId,
+        		CASE
+        			WHEN t.FordranUppbordsomrade = 31 THEN 'AN'
+        			WHEN t.FordranUppbordsomrade = 32 THEN 'TN'
+        			WHEN t.FordranUppbordsomrade = 33 THEN 'FS'
+        			WHEN t.FordranUppbordsomrade = 34 THEN 'KA'
+        			WHEN t.FordranUppbordsomrade = 35 THEN 'YT'
+        			WHEN t.FordranUppbordsomrade = 36 THEN 'SA'
+        			WHEN t.FordranUppbordsomrade = 37 THEN 'VA'
+        			WHEN t.FordranUppbordsomrade = 38 THEN 'PA'
+        			WHEN t.FordranUppbordsomrade = 39 THEN 'KKKK'
+        			WHEN t.FordranUppbordsomrade = 40 THEN 'TA'
+        			WHEN t.FordranUppbordsomrade = 41 THEN 'UK'
+        			WHEN t.FordranUppbordsomrade = 42 THEN 'TS'
+        			WHEN t.FordranUppbordsomrade = 43 THEN 'ODEF'
+        		END AS Penningklass,
+        		t.FordranBetalreferens AS Betalreferens,
+        		t.FordranBetalreferens AS Ocr,
+        		(t.FordranSaldo / 100) AS Saldo,
+        		(t.FordranSaldo / 100) AS Grundbelopp,
+        		CASE
+        			WHEN t.FordranStatus = 1 THEN 1
+        			WHEN t.FordranStatus = 2 THEN 2
+        			WHEN t.FordranStatus = 3 THEN 3
+        			ELSE 0
+        		END AS [Status],
+        		0 AS Lopnummer,
+        		0 AS Uppdateringsnummer,
+        		t.PersonId AS Fakturanummer,
+        		NULL AS Registreringsnummer,
+        		CASE
+        			WHEN t.FordranStatus = 4 THEN @Yesterday
+        			WHEN t.FordranStatus = 5 THEN @Yesterday
+        			ELSE @Tomorrow
+        		END AS Forfallodatum,
+        		@TenDaysAgo AS Transaktionsdatum,
+        		@TenDaysAgo AS Beslutsdatum,
+        		CASE
+        			WHEN LEFT(t.FordranBetalreferens, 2) = '10' THEN 'R92'
+        			ELSE 'RP1'
+        		END AS Ursprungstabell,
+        		1 AS SkuldId,
+        		@TenDaysAgo AS Skapandedatum,
+        		@TenDaysAgo AS ModifiedDateTime,
+        		CASE
+        			WHEN LEFT(t.FordranBetalreferens, 2) = '10' THEN 2
+        			ELSE 1
+        		END AS Fordranskategori
+        FROM #TestDataMPM t
+        WHERE t.FordranReferenceId IS NOT NULL
+
+        ----- tdl.SamlingsfakturaInfo
+        INSERT INTO [USB-RedovStaging].[tdl].[SamlingsfakturaInfo]([Fakturanummer],[FordranId],[CreatedDateTime],[ModifiedDateTime])
+        SELECT
+        	t.PersonId,
+        	o.FordranMasterId,
+        	@TenDaysAgo AS CreatedDateTime,
+        	@TenDaysAgo AS ModifiedDateTime
+        FROM #TestDataMPM t
+        JOIN @TempOutput o ON t.DataSetId = o.DataSetId
+        JOIN [USB-RedovStaging].[tdl].[Fordran] m ON m.Id = o.FordranMasterId
+        WHERE m.Fordranskategori = 1
+          	AND EXISTS (
+        		SELECT 1 FROM [USB-RedovStaging].[tdl].[Fordran] m2
+        		WHERE m2.Fakturanummer = m.Fakturanummer AND m2.Fordranskategori = 2
+        	)
+
+        ----- tdl.Fordransartikel
+        INSERT INTO [USB-RedovStaging].[tdl].[Fordransartikel] ([KallId],[FordranId],[ArtikelId],[Antal],[Artikelbelopp],[Avrakningsbelopp],[SkapadDateTime],[ModifieradDateTime],[Penningklass],[Ursprungstabell])
+        SELECT
+        	2 AS KallId,
+        	o.FordranMasterId,
+        	2 AS ArtikelId,
+        	1 AS Antal,
+        	(t.FordranSaldo / 100) AS Artikelbelopp,
+        	0 AS Avrakningsbelopp,
+        	@TenDaysAgo AS SkapadDateTime,
+        	@TenDaysAgo AS ModifieradDateTime,
+        	CASE
+        		WHEN t.FordranUppbordsomrade = 31 THEN 'AN'
+        		WHEN t.FordranUppbordsomrade = 32 THEN 'TN'
+        		WHEN t.FordranUppbordsomrade = 33 THEN 'FS'
+        		WHEN t.FordranUppbordsomrade = 34 THEN 'KA'
+        		WHEN t.FordranUppbordsomrade = 35 THEN 'YT'
+        		WHEN t.FordranUppbordsomrade = 36 THEN 'SA'
+        		WHEN t.FordranUppbordsomrade = 37 THEN 'VA'
+        		WHEN t.FordranUppbordsomrade = 38 THEN 'PA'
+        		WHEN t.FordranUppbordsomrade = 39 THEN 'KKKK'
+        		WHEN t.FordranUppbordsomrade = 40 THEN 'TA'
+        		WHEN t.FordranUppbordsomrade = 41 THEN 'UK'
+        		WHEN t.FordranUppbordsomrade = 42 THEN 'TS'
+        		WHEN t.FordranUppbordsomrade = 43 THEN 'ODEF'
+        	END AS Penningklass,
+        	CASE
+        		WHEN LEFT(t.FordranBetalreferens, 2) = '10' THEN 'R92'
+        		ELSE 'RP1'
+        	END AS Ursprungstabell
+        FROM #TestDataMPM t
+        JOIN @TempOutput o ON t.DataSetId = o.DataSetId
+        JOIN [USB-RedovStaging].[tdl].[Fordran] m ON m.Id = o.FordranMasterId
+        WHERE m.Fordranskategori = 1
+          	AND EXISTS (
+        		SELECT 1 FROM [USB-RedovStaging].[tdl].[Fordran] m2
+        		WHERE m2.Fakturanummer = m.Fakturanummer AND m2.Fordranskategori = 2
+        	)
+
+        ----- Igun.PlaceringResponse
+        INSERT INTO [USB-Support].[Igun].[PlaceringResponse]([Tabellverk],[FordranId],[Saldo],[Signalresultat],[Signalpost])
+        SELECT
+        	CASE
+        		WHEN LEFT(t.FordranBetalreferens, 2) = '10' THEN 'R92'
+        		ELSE 'RP1'
+        	END AS Tabellverk,
+        	t.DataSetId AS FordranId,
+        	CASE
+        		WHEN t.FordranStatus = 4 THEN (t.FordranSaldo / 100 + 50)
+        		ELSE (t.FordranSaldo / 100)
+        	END AS Saldo,
+        	ISNULL(t.IgunSignalResultat, 1) AS Signalresultat,
+        	ISNULL(t.IgunSignalPost, 1) AS Signalpost
+        FROM #TestDataMPM t
+        WHERE t.FordranReferenceId IS NOT NULL
+
+        ----- Igun.IntressentResponse mock (POI)
+        INSERT INTO [USB-Support].[Igun].[IntressentResponse]([PersonId],[PersonNrOrgNrField],[CoAdress],[Adress],[Postnummer],[Postort],[Namn],[PersonTyp])
+        SELECT
+        	t.PersonId AS PersonId,
+        	t.POIPersOrgNr AS PersonNrOrgNrField,
+        	t.InbetalareAdress2 AS CoAdress,
+        	t.InbetalareAdress1 AS Adress,
+        	t.InbetalarePostnummer AS Postnummer,
+        	t.InbetalareOrt AS Postort,
+        	t.InbetalareNamn AS Namn,
+        	t.POITyp AS PersonTyp
+        FROM #TestDataMPM t
+        WHERE t.POITyp IS NOT NULL
+
+        ----- Igun.BankuppgifterResponse mock bankuppgifter i POI
+        INSERT INTO [USB-Support].[Igun].BankuppgifterResponse
+        SELECT
+        	t.PersonId AS PersonId,
+        	CASE
+        		WHEN LEFT(t.POIPersOrgNr, 2) IN ('19', '20') THEN RIGHT(t.POIPersOrgNr, LEN(t.POIPersOrgNr) - 2)
+        		ELSE t.POIPersOrgNr
+        	END AS PersonOrgnummer,
+        	CASE
+        		WHEN LEFT(t.POIPersOrgNr, 2) IN ('19', '20') THEN LEFT(t.POIPersOrgNr, 2)
+        		ELSE NULL
+        	END AS Sekel,
+        	CASE
+        		WHEN t.POIBank = @BG THEN @BG
+        		WHEN t.POIBank = @PG THEN @PG
+        	END AS Kontonummer,
+        	CASE
+        		WHEN t.POIBank = @BG THEN 'bg'
+        		WHEN t.POIBank = @PG THEN 'pg'
+        	END AS Kontotyp,
+        	1 AS Resultatsignal,
+        	1 AS Orsaksignal
+        FROM #TestDataMPM t
+        WHERE t.POIBank IS NOT NULL
+
+        ----- Igun.SaldoInklusiveDAResponse (dröjsmålsavgift)
+        INSERT INTO [USB-Support].[Igun].[SaldoInklusiveDAResponse]([Tabellverk],[Saldo],[DrojsmalAvigft],[Signal],[IdProperty])
+        SELECT
+        	CASE
+        		WHEN LEFT(t.FordranBetalreferens, 2) = '10' THEN 'R92'
+        		ELSE 'RP1'
+        	END AS Tabellverk,
+            (t.FordranSaldo / 100) AS Saldo,
+        	CASE
+        		WHEN t.FordranStatus = 4 THEN 50
+        		WHEN t.FordranStatus = 5 THEN 0
+        		ELSE 0
+        	END AS DrojsmalAvigft,
+        	1 AS Signal,
+        	t.DataSetId AS IdProperty
+        FROM #TestDataMPM t
+        WHERE t.FordranReferenceId IS NOT NULL
+
+        ----- Igun.SaldoResponse (saldo QRB02)
+        INSERT INTO [USB-Support].[Igun].[SaldoResponse]([Tabellverk],[Id],[Saldo],[Signal])
+        SELECT
+        	CASE
+        		WHEN LEFT(t.FordranBetalreferens, 2) = '10' THEN 'R92'
+        		ELSE 'RP1'
+        	END AS Tabellverk,
+        	t.DataSetId AS Id,
+            (t.FordranSaldo / 100) AS Saldo,
+        	1 AS Signal
+        FROM #TestDataMPM t
+        WHERE t.FordranReferenceId IS NOT NULL;
+
+        """;
 
     private static string Str(string? v) =>
         string.IsNullOrEmpty(v) ? "NULL" : $"N'{v.Replace("'", "''")}'";
