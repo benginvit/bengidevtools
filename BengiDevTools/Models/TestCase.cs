@@ -1,6 +1,6 @@
 namespace BengiDevTools.Models;
 
-public enum TestCaseStepType { TestfallData, Sql, Swagger, Sleep }
+public enum TestCaseStepType { TestfallData, Sql, Swagger, Sleep, SqlForeach }
 
 public class TestCaseStep
 {

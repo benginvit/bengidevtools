@@ -154,6 +154,13 @@
                 }
             }
 
+            <div class="toolbox-section-header">SQL → HTTP</div>
+            <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
+                 @onclick="() => { if (_editMode) AddSqlForeachStep(); }">
+                <span class="action-type-badge foreach">FOR</span>
+                <span class="toolbox-item-name">SQL → foreach HTTP</span>
+            </div>
+
             <div class="toolbox-section-header">Paus</div>
             <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
                  @onclick="() => { if (_editMode) AddSleepStep(); }">
@@ -230,10 +237,19 @@
                         <div class="section-header">Steg</div>
                         @for (int i = 0; i < _form.Steps.Count; i++)
                         {
-                            var step = _form.Steps[i];
-                            var idx  = i;
+                            var step     = _form.Steps[i];
+                            var idx      = i;
+                            var expanded = _expandedSteps.Contains(idx);
+                            var canExpand = step.Type is TestCaseStepType.Sql
+                                                      or TestCaseStepType.Swagger
+                                                      or TestCaseStepType.SqlForeach;
                             <div class="action-item">
                                 <div class="action-header">
+                                    @if (canExpand)
+                                    {
+                                        <button class="btn sm" style="padding:0 5px;min-width:20px;font-size:11px"
+                                                @onclick="() => ToggleExpand(idx)">@(expanded ? "▾" : "▸")</button>
+                                    }
                                     <span class="action-type-badge @StepBadgeClass(step.Type)">@StepBadgeText(step.Type)</span>
                                     <span style="flex:1;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
                                         @StepSummary(step)
@@ -249,6 +265,48 @@
                                     <button class="btn sm" @onclick="() => MoveStepDown(idx)" disabled="@(idx == _form.Steps.Count - 1)">↓</button>
                                     <button class="btn sm danger" @onclick="() => RemoveStep(idx)">×</button>
                                 </div>
+                                @if (expanded)
+                                {
+                                    <div class="step-expand-body">
+                                        <input class="input" style="font-size:11px" placeholder="Stegnamn..."
+                                               @bind="step.Label" @bind:event="oninput" />
+                                        @if (step.Type == TestCaseStepType.Sql)
+                                        {
+                                            <textarea class="debug-sql-editor" style="height:140px;resize:vertical"
+                                                      placeholder="SQL-skript..." spellcheck="false"
+                                                      @bind="step.SqlScript" @bind:event="oninput" />
+                                        }
+                                        else if (step.Type == TestCaseStepType.Swagger)
+                                        {
+                                            <div style="display:flex;gap:6px">
+                                                <select class="input" style="width:90px;flex-shrink:0" @bind="step.HttpMethod">
+                                                    <option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option>
+                                                </select>
+                                                <input class="input" placeholder="URL..." @bind="step.Url" @bind:event="oninput" />
+                                            </div>
+                                            <textarea class="debug-sql-editor" style="height:80px;resize:vertical"
+                                                      placeholder="Body (JSON)..." spellcheck="false"
+                                                      @bind="step.Body" @bind:event="oninput" />
+                                        }
+                                        else if (step.Type == TestCaseStepType.SqlForeach)
+                                        {
+                                            <div class="step-expand-label">SQL-fråga</div>
+                                            <textarea class="debug-sql-editor" style="height:110px;resize:vertical"
+                                                      placeholder="SELECT Id, JsonData FROM ..." spellcheck="false"
+                                                      @bind="step.SqlScript" @bind:event="oninput" />
+                                            <div class="step-expand-label">HTTP per rad — använd {KolumnNamn} i URL/body</div>
+                                            <div style="display:flex;gap:6px">
+                                                <select class="input" style="width:90px;flex-shrink:0" @bind="step.HttpMethod">
+                                                    <option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option>
+                                                </select>
+                                                <input class="input" placeholder="https://…/{Id}" @bind="step.Url" @bind:event="oninput" />
+                                            </div>
+                                            <textarea class="debug-sql-editor" style="height:80px;resize:vertical"
+                                                      placeholder="Body, t.ex. {JsonData}" spellcheck="false"
+                                                      @bind="step.Body" @bind:event="oninput" />
+                                        }
+                                    </div>
+                                }
                             </div>
                         }
                         @if (_form.Steps.Count == 0)
@@ -342,6 +400,7 @@
 
     private List<ToolboxScript> _toolboxScripts   = [];
     private List<Scenario>      _toolboxScenarios = [];
+    private HashSet<int>        _expandedSteps    = [];
 
     private bool   _newSqlOpen    = false;
     private string _newSqlName    = "";
@@ -475,6 +534,11 @@
 
     private void CancelEditSwagger() { _editSwagId = null; _editSwagName = ""; _editSwagMethod = "POST"; _editSwagUrl = ""; _editSwagBody = ""; }
 
+    private void ToggleExpand(int idx)
+    {
+        if (!_expandedSteps.Remove(idx)) _expandedSteps.Add(idx);
+    }
+
     private void AddDataRowStep(int dataSetId, string beskrivning) =>
         _form.Steps.Add(new TestCaseStep { Type = TestCaseStepType.TestfallData, DataSetId = dataSetId, Label = beskrivning });
 
@@ -482,26 +546,45 @@
     {
         var content = File.Exists(script.Path) ? File.ReadAllText(script.Path) : "";
         _form.Steps.Add(new TestCaseStep { Type = TestCaseStepType.Sql, Label = script.Name, SqlScript = content });
+        _expandedSteps.Add(_form.Steps.Count - 1);
     }
 
-    private void AddScenarioStep(Scenario s) =>
+    private void AddScenarioStep(Scenario s)
+    {
         _form.Steps.Add(new TestCaseStep { Type = TestCaseStepType.Swagger, Label = s.Name, HttpMethod = s.Method, Url = s.Url, Body = s.Body });
+        _expandedSteps.Add(_form.Steps.Count - 1);
+    }
+
+    private void AddSqlForeachStep()
+    {
+        _form.Steps.Add(new TestCaseStep { Type = TestCaseStepType.SqlForeach, Label = "SQL → foreach HTTP", HttpMethod = "POST" });
+        _expandedSteps.Add(_form.Steps.Count - 1);
+    }
 
     private void AddSleepStep() =>
         _form.Steps.Add(new TestCaseStep { Type = TestCaseStepType.Sleep, SleepSeconds = _sleepSeconds, Label = $"Vänta {_sleepSeconds}s" });
 
-    private void RemoveStep(int idx) => _form.Steps.RemoveAt(idx);
+    private void RemoveStep(int idx)
+    {
+        _form.Steps.RemoveAt(idx);
+        _expandedSteps = _expandedSteps
+            .Where(i => i != idx)
+            .Select(i => i > idx ? i - 1 : i)
+            .ToHashSet();
+    }
 
     private void MoveStepUp(int idx)
     {
         if (idx <= 0) return;
         (_form.Steps[idx - 1], _form.Steps[idx]) = (_form.Steps[idx], _form.Steps[idx - 1]);
+        _expandedSteps.Clear();
     }
 
     private void MoveStepDown(int idx)
     {
         if (idx >= _form.Steps.Count - 1) return;
         (_form.Steps[idx + 1], _form.Steps[idx]) = (_form.Steps[idx], _form.Steps[idx + 1]);
+        _expandedSteps.Clear();
     }
 
     // ── Step helpers ───────────────────────────────────────────────────────────
@@ -512,6 +595,7 @@
         TestCaseStepType.Sql         => "sql",
         TestCaseStepType.Swagger     => "swagger",
         TestCaseStepType.Sleep       => "sleep",
+        TestCaseStepType.SqlForeach  => "foreach",
         _                            => "",
     };
 
@@ -521,6 +605,7 @@
         TestCaseStepType.Sql         => "SQL",
         TestCaseStepType.Swagger     => "HTTP",
         TestCaseStepType.Sleep       => "ZZZ",
+        TestCaseStepType.SqlForeach  => "FOR",
         _                            => "?",
     };
 
@@ -530,6 +615,7 @@
         TestCaseStepType.Sql         => step.Label,
         TestCaseStepType.Swagger     => string.IsNullOrEmpty(step.Label) ? $"{step.HttpMethod} {step.Url}" : step.Label,
         TestCaseStepType.Sleep       => $"Vänta {step.SleepSeconds}s",
+        TestCaseStepType.SqlForeach  => string.IsNullOrEmpty(step.Label) ? $"{step.HttpMethod} {step.Url}" : step.Label,
         _                            => step.Label,
     };
 
@@ -553,10 +639,11 @@
 
     private void StartNew()
     {
-        _form     = new TestCase();
-        _isNew    = true;
-        _editMode = true;
-        _selected = null;
+        _form          = new TestCase();
+        _isNew         = true;
+        _editMode      = true;
+        _selected      = null;
+        _expandedSteps.Clear();
     }
 
     private void EditSelected()
@@ -581,6 +668,7 @@
         };
         _isNew    = false;
         _editMode = true;
+        _expandedSteps.Clear();
     }
 
     private void SaveForm()
@@ -595,7 +683,7 @@
         _editMode = false;
     }
 
-    private void CancelEdit() => _editMode = false;
+    private void CancelEdit() { _editMode = false; _expandedSteps.Clear(); }
 
     private void DeleteSelected()
     {

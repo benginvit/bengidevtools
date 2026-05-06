@@ -510,6 +510,24 @@ body {
 .action-type-badge.swagger { background: #1a2a3f; color: var(--blue); }
 .action-type-badge.data    { background: #2a1f3f; color: #b09ef5; }
 .action-type-badge.sleep   { background: #2a2a1f; color: #c8b86a; }
+.action-type-badge.foreach { background: #0d2a2a; color: #5cc9c9; }
+
+.step-expand-body {
+  padding: 8px 8px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.step-expand-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
 
 /* ─── Build page ───────────────────────────────────────────────────────────── */
 

@@ -82,6 +82,12 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
                             progress($"  [PAUS] {step.SleepSeconds}s");
                             await Task.Delay(TimeSpan.FromSeconds(step.SleepSeconds), ct);
                             break;
+
+                        case TestCaseStepType.SqlForeach:
+                            progress($"  [FOR] {step.Label}");
+                            await EnsureConnAsync();
+                            await RunSqlForeachAsync(conn!, http, step, progress, ct);
+                            break;
                     }
                 }
             }
@@ -141,6 +147,52 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
             }
         }
         if (ok) progress($"    OK — {totalRows} rader påverkade");
+    }
+
+    private static async Task RunSqlForeachAsync(SqlConnection conn, HttpClient http, TestCaseStep step, Action<string> progress, CancellationToken ct)
+    {
+        var rows = new List<Dictionary<string, string>>();
+        try
+        {
+            using var cmd    = new SqlCommand(step.SqlScript, conn) { CommandTimeout = 60 };
+            using var reader = await cmd.ExecuteReaderAsync(ct);
+            while (await reader.ReadAsync(ct))
+            {
+                var row = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                for (int i = 0; i < reader.FieldCount; i++)
+                    row[reader.GetName(i)] = reader.IsDBNull(i) ? "" : reader.GetValue(i)?.ToString() ?? "";
+                rows.Add(row);
+            }
+        }
+        catch (Exception ex) { progress($"    FEL (SQL): {ex.Message}"); return; }
+
+        progress($"    {rows.Count} rader — skickar HTTP...");
+
+        foreach (var row in rows)
+        {
+            ct.ThrowIfCancellationRequested();
+            var url  = Substitute(step.Url,  row);
+            var body = Substitute(step.Body, row);
+            try
+            {
+                using var request = new HttpRequestMessage(new HttpMethod(step.HttpMethod), url);
+                if (!string.IsNullOrEmpty(body))
+                    request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+                using var response = await http.SendAsync(request, ct);
+                var responseBody = await response.Content.ReadAsStringAsync(ct);
+                progress($"    {(int)response.StatusCode} {response.ReasonPhrase}" +
+                         (string.IsNullOrWhiteSpace(responseBody) ? "" : $"  {responseBody.Trim()[..Math.Min(120, responseBody.Trim().Length)]}"));
+            }
+            catch (Exception ex) { progress($"    FEL: {ex.Message}"); }
+        }
+    }
+
+    private static string Substitute(string template, Dictionary<string, string> row)
+    {
+        var result = template;
+        foreach (var (k, v) in row)
+            result = result.Replace($"{{{k}}}", v, StringComparison.OrdinalIgnoreCase);
+        return result;
     }
 
     private static async Task RunHttpCallAsync(HttpClient http, TestCaseStep step, Action<string> progress, CancellationToken ct)
