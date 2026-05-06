@@ -288,6 +288,10 @@ body {
   overflow: hidden;
 }
 
+.testfall-layout-editing {
+  grid-template-columns: 320px 240px 1fr;
+}
+
 .testfall-list {
   background: var(--panel);
   border: 1px solid var(--border);
