@@ -179,7 +179,7 @@
             {
                 <div class="testfall-form-container">
                     <div class="testfall-form-header">
-                        <span style="font-weight:600;color:var(--blue)">@(_isNew ? "Nytt testfall" : $"Redigera #{_form.DataSetId}")</span>
+                        <span style="font-weight:600;color:var(--blue)">@(_isNew ? "Nytt testfall" : "Redigera")</span>
                         <div style="display:flex;gap:6px">
                             <button class="btn sm primary" @onclick="SaveForm">Spara</button>
                             <button class="btn sm" @onclick="CancelEdit">Avbryt</button>
@@ -188,17 +188,13 @@
                     <div class="testfall-form-body">
                         <div class="form-row">
                             <div class="form-group" style="width:120px">
-                                <label class="form-label">DataSetId</label>
-                                <input class="input" type="number" @bind="_form.DataSetId" />
-                            </div>
-                            <div class="form-group" style="flex:1">
                                 <label class="form-label">Tag (kategori)</label>
                                 <input class="input" @bind="_form.Tag" @bind:event="oninput" placeholder="t.ex. EM, AM, Igun" />
                             </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Beskrivning</label>
-                            <input class="input" @bind="_form.Beskrivning" @bind:event="oninput" />
+                            <div class="form-group" style="flex:1">
+                                <label class="form-label">Beskrivning</label>
+                                <input class="input" @bind="_form.Beskrivning" @bind:event="oninput" />
+                            </div>
                         </div>
 
                         <div class="section-header">Steg</div>
@@ -338,16 +334,16 @@
             {
                 <div class="testfall-form-header">
                     <div>
-                        <span style="font-weight:600;color:var(--blue)">#@_selected.DataSetId</span>
                         @if (!string.IsNullOrEmpty(_selected.Tag))
                         {
-                            <span class="testfall-tag" style="margin-left:6px">@_selected.Tag</span>
+                            <span class="testfall-tag">@_selected.Tag</span>
                         }
-                        <div style="font-size:12px;margin-top:2px">@_selected.Beskrivning</div>
+                        <div style="font-size:12px;margin-top:2px;font-weight:600">@_selected.Beskrivning</div>
                     </div>
                     <div style="display:flex;gap:6px;align-items:center">
                         <button class="btn sm primary" @onclick="() => RunOne(_selected)" disabled="@_busy">▶ Kör</button>
                         <button class="btn sm" @onclick="EditSelected">✎ Redigera</button>
+                        <button class="btn sm" @onclick="CopySelected" title="Skapa kopia av detta testfall">Kopiera</button>
                         <button class="btn sm danger" @onclick="DeleteSelected">🗑</button>
                     </div>
                 </div>
@@ -393,7 +389,6 @@
                            style="accent-color:var(--blue);flex-shrink:0"
                            @onclick:stopPropagation
                            @onchange="e => Toggle(tc.DataSetId, (bool)(e.Value ?? false))" />
-                    <span class="testfall-id">#@tc.DataSetId</span>
                     @if (!string.IsNullOrEmpty(tc.Tag))
                     {
                         <span class="testfall-tag">@tc.Tag</span>
@@ -715,12 +710,47 @@
 
     // ── Edit ───────────────────────────────────────────────────────────────────
 
+    private int NextId() => Svc.Cases.Any() ? Svc.Cases.Max(c => c.DataSetId) + 1 : 1;
+
     private void StartNew()
     {
-        _form          = new TestCase();
+        _form          = new TestCase { DataSetId = NextId() };
         _isNew         = true;
         _editMode      = true;
         _selected      = null;
+        _expandedSteps.Clear();
+    }
+
+    private void CopySelected()
+    {
+        if (_selected is null) return;
+        _form = new TestCase
+        {
+            DataSetId   = NextId(),
+            Beskrivning = _selected.Beskrivning + " (kopia)",
+            Tag         = _selected.Tag,
+            Steps       = _selected.Steps.Select(s => new TestCaseStep
+            {
+                Type                  = s.Type,
+                Label                 = s.Label,
+                DataSetId             = s.DataSetId,
+                SqlScript             = s.SqlScript,
+                HttpMethod            = s.HttpMethod,
+                Url                   = s.Url,
+                Body                  = s.Body,
+                ContentType           = s.ContentType,
+                UseDefaultCredentials = s.UseDefaultCredentials,
+                HeadersRaw            = s.HeadersRaw,
+                SleepSeconds          = s.SleepSeconds,
+                PollCriteria          = s.PollCriteria,
+                PollCriteriaColumn    = s.PollCriteriaColumn,
+                PollCriteriaValue     = s.PollCriteriaValue,
+                PollTimeoutSeconds    = s.PollTimeoutSeconds,
+                Breakpoint            = false,
+            }).ToList(),
+        };
+        _isNew    = true;
+        _editMode = true;
         _expandedSteps.Clear();
     }
 
