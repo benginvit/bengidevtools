@@ -184,7 +184,8 @@
                             var expanded = _expandedSteps.Contains(idx);
                             var canExpand = step.Type is TestCaseStepType.Sql
                                                       or TestCaseStepType.Swagger
-                                                      or TestCaseStepType.SqlForeach;
+                                                      or TestCaseStepType.SqlForeach
+                                                      or TestCaseStepType.SqlPoll;
                             <div class="action-item">
                                 <div class="action-header">
                                     @if (canExpand)
