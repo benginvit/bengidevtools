@@ -286,7 +286,7 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
 
     private static StringContent BuildContent(string body, string contentType)
     {
-        var content = new StringContent(body, Encoding.UTF8);
+        var content = new StringContent(body.Trim(), Encoding.UTF8);
         content.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType);
         return content;
     }
