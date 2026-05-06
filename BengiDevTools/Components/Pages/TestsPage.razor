@@ -121,7 +121,7 @@
                                                @bind="step.Label" @bind:event="oninput" />
                                         @if (step.Type == TestCaseStepType.Sql)
                                         {
-                                            <textarea class="debug-sql-editor" style="height:140px;resize:vertical"
+                                            <textarea class="debug-sql-editor" style="height:300px;resize:vertical"
                                                       placeholder="SQL-skript..." spellcheck="false"
                                                       @bind="step.SqlScript" @bind:event="oninput" />
                                         }
@@ -133,14 +133,14 @@
                                                 </select>
                                                 <input class="input" placeholder="URL..." @bind="step.Url" @bind:event="oninput" />
                                             </div>
-                                            <textarea class="debug-sql-editor" style="height:80px;resize:vertical"
+                                            <textarea class="debug-sql-editor" style="height:160px;resize:vertical"
                                                       placeholder="Body (JSON)..." spellcheck="false"
                                                       @bind="step.Body" @bind:event="oninput" />
                                         }
                                         else if (step.Type == TestCaseStepType.SqlForeach)
                                         {
                                             <div class="step-expand-label">SQL-fråga</div>
-                                            <textarea class="debug-sql-editor" style="height:110px;resize:vertical"
+                                            <textarea class="debug-sql-editor" style="height:220px;resize:vertical"
                                                       placeholder="SELECT Id, JsonData FROM ..." spellcheck="false"
                                                       @bind="step.SqlScript" @bind:event="oninput" />
                                             <div class="step-expand-label">HTTP per rad — använd {KolumnNamn} i URL/body</div>
@@ -150,7 +150,7 @@
                                                 </select>
                                                 <input class="input" placeholder="https://…/{Id}" @bind="step.Url" @bind:event="oninput" />
                                             </div>
-                                            <textarea class="debug-sql-editor" style="height:80px;resize:vertical"
+                                            <textarea class="debug-sql-editor" style="height:160px;resize:vertical"
                                                       placeholder="Body, t.ex. {JsonData}" spellcheck="false"
                                                       @bind="step.Body" @bind:event="oninput" />
                                         }
