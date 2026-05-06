@@ -188,6 +188,9 @@
                                                       or TestCaseStepType.SqlPoll;
                             <div class="action-item">
                                 <div class="action-header">
+                                    <button class="breakpoint-btn @(step.Breakpoint ? "active" : "")"
+                                            title="@(step.Breakpoint ? "Ta bort breakpoint" : "Lägg till breakpoint")"
+                                            @onclick="() => step.Breakpoint = !step.Breakpoint">●</button>
                                     @if (canExpand)
                                     {
                                         <button class="btn sm" style="padding:0 5px;min-width:20px;font-size:11px"
@@ -394,6 +397,14 @@
                 </span>
                 <button class="btn sm" @onclick="() => _log.Clear()">✕</button>
             </div>
+            @if (_paused)
+            {
+                <div style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:#1a1200;border-bottom:1px solid #554400">
+                    <span style="color:#ffcc44;font-size:11px">⏸ Pausad vid breakpoint</span>
+                    <button class="btn sm primary" @onclick="ResumeBreakpoint">▶ Fortsätt</button>
+                    <button class="btn sm danger"  @onclick="CancelBreakpoint">⏹ Avbryt</button>
+                </div>
+            }
             <div class="status-bar-log" id="testfall-log">
                 @foreach (var line in _log)
                 {
@@ -423,6 +434,8 @@
     private List<ToolboxScript>   _toolboxScripts   = [];
     private List<ToolboxScenario> _toolboxScenarios = [];
     private HashSet<int>        _expandedSteps    = [];
+    private bool                          _paused           = false;
+    private TaskCompletionSource<bool>?  _breakpointTcs;
     private bool                _tbDataExpanded   = false;
     private string              _tbDataFilter     = "";
     private HashSet<int>        _tbDataChecked    = [];
@@ -708,6 +721,7 @@
                 PollCriteriaColumn    = s.PollCriteriaColumn,
                 PollCriteriaValue     = s.PollCriteriaValue,
                 PollTimeoutSeconds    = s.PollTimeoutSeconds,
+                Breakpoint            = s.Breakpoint,
             }).ToList(),
         };
         _isNew    = false;
@@ -728,6 +742,19 @@
     }
 
     private void CancelEdit() { _editMode = false; _expandedSteps.Clear(); }
+
+    private async Task OnBreakpoint(TestCaseStep step, CancellationToken ct)
+    {
+        _breakpointTcs = new TaskCompletionSource<bool>();
+        _paused = true;
+        await InvokeAsync(() => { Log($"⏸ Breakpoint: {step.Label}"); StateHasChanged(); });
+        using var reg = ct.Register(() => _breakpointTcs.TrySetCanceled());
+        await _breakpointTcs.Task;
+        _paused = false;
+    }
+
+    private void ResumeBreakpoint() { _paused = false; _breakpointTcs?.TrySetResult(true); }
+    private void CancelBreakpoint()  { _paused = false; _breakpointTcs?.TrySetCanceled(); _cts.Cancel(); }
 
     private void DeleteSelected()
     {
@@ -752,7 +779,7 @@
         try
         {
             await Svc.RunAsync(cases, Settings.Settings.SqlConnectionString,
-                msg => _ = LogAsync(msg), _cts.Token);
+                msg => _ = LogAsync(msg), OnBreakpoint, _cts.Token);
             Log("──── Klar ─────────────────────────────");
         }
         catch (OperationCanceledException) { Log("  Avbruten"); }

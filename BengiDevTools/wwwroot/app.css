@@ -446,6 +446,9 @@ body {
 .toolbox-item-check            { width: 12px; font-size: 10px; color: var(--blue); flex-shrink: 0; }
 .toolbox-delete-btn            { margin-left: auto; flex-shrink: 0; background: none; border: none; color: var(--muted); cursor: pointer; padding: 0 2px; font-size: 13px; line-height: 1; }
 .toolbox-delete-btn:hover      { color: var(--red); }
+.breakpoint-btn                { background: none; border: none; cursor: pointer; color: #333; font-size: 13px; padding: 0 3px; flex-shrink: 0; line-height: 1; }
+.breakpoint-btn:hover          { color: #c0392b; }
+.breakpoint-btn.active         { color: #e74c3c; }
 
 .toolbox-item-name {
   overflow: hidden;

@@ -10,6 +10,6 @@ public interface ITestCaseService
     void Add(TestCase tc);
     void Remove(TestCase tc);
     void Replace(TestCase old, TestCase updated);
-    Task RunAsync(IEnumerable<TestCase> cases, string connectionString, Action<string> progress, CancellationToken ct = default);
+    Task RunAsync(IEnumerable<TestCase> cases, string connectionString, Action<string> progress, Func<TestCaseStep, CancellationToken, Task>? onBreakpoint = null, CancellationToken ct = default);
     string ExportSql(IEnumerable<TestCase> cases);
 }

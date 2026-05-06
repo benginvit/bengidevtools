@@ -19,6 +19,7 @@ public class TestCaseStep
     public string           PollCriteriaColumn   { get; set; } = "";
     public string           PollCriteriaValue    { get; set; } = "1";
     public int              PollTimeoutSeconds   { get; set; } = 30;
+    public bool             Breakpoint           { get; set; } = false;
 }
 
 public class TestCase
