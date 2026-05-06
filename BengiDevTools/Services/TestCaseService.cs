@@ -177,6 +177,9 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
             var url    = Substitute(step.Url,  row);
             var body   = Substitute(step.Body, row);
             var rowTag = RowTag(row, i, total);
+            progress($"    {rowTag} → {step.HttpMethod} {url}");
+            if (!string.IsNullOrWhiteSpace(body))
+                progress($"      {body.Trim()[..Math.Min(800, body.Trim().Length)]}");
             try
             {
                 using var request = new HttpRequestMessage(new HttpMethod(step.HttpMethod), url);
@@ -186,18 +189,18 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
                 var responseBody = await response.Content.ReadAsStringAsync(ct);
                 if (response.IsSuccessStatusCode)
                 {
-                    progress($"    {rowTag} → {(int)response.StatusCode} {response.ReasonPhrase}");
+                    progress($"      ← {(int)response.StatusCode} {response.ReasonPhrase}");
                     ok++;
                 }
                 else
                 {
-                    progress($"    {rowTag} → {(int)response.StatusCode} {response.ReasonPhrase}");
+                    progress($"      ← {(int)response.StatusCode} {response.ReasonPhrase}");
                     if (!string.IsNullOrWhiteSpace(responseBody))
                         progress($"      {responseBody.Trim()[..Math.Min(600, responseBody.Trim().Length)]}");
                     fel++;
                 }
             }
-            catch (Exception ex) { progress($"    {rowTag} → FEL: {ex.Message}"); fel++; }
+            catch (Exception ex) { progress($"      ← FEL: {ex.Message}"); fel++; }
         }
         progress(fel == 0 ? $"    Klart: {ok}/{total} OK" : $"    Klart: {ok} OK, {fel} FEL av {total}");
     }
