@@ -215,6 +215,12 @@
                                                 </select>
                                                 <input class="input" placeholder="URL..." @bind="step.Url" @bind:event="oninput" />
                                             </div>
+                                            <div style="display:flex;gap:8px;align-items:center">
+                                                <input class="input" style="flex:1;font-size:11px" placeholder="Content-Type" @bind="step.ContentType" @bind:event="oninput" />
+                                                <label style="display:flex;gap:4px;align-items:center;font-size:11px;white-space:nowrap;cursor:pointer">
+                                                    <input type="checkbox" @bind="step.UseDefaultCredentials" /> UseDefaultCredentials
+                                                </label>
+                                            </div>
                                             <textarea class="debug-sql-editor" style="height:160px;resize:vertical"
                                                       placeholder="Body (JSON)..." spellcheck="false"
                                                       @bind="step.Body" @bind:event="oninput" />
@@ -231,6 +237,12 @@
                                                     <option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option>
                                                 </select>
                                                 <input class="input" placeholder="https://…/{Id}" @bind="step.Url" @bind:event="oninput" />
+                                            </div>
+                                            <div style="display:flex;gap:8px;align-items:center">
+                                                <input class="input" style="flex:1;font-size:11px" placeholder="Content-Type" @bind="step.ContentType" @bind:event="oninput" />
+                                                <label style="display:flex;gap:4px;align-items:center;font-size:11px;white-space:nowrap;cursor:pointer">
+                                                    <input type="checkbox" @bind="step.UseDefaultCredentials" /> UseDefaultCredentials
+                                                </label>
                                             </div>
                                             <textarea class="debug-sql-editor" style="height:160px;resize:vertical"
                                                       placeholder="Body, t.ex. {JsonData}" spellcheck="false"

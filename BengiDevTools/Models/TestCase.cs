@@ -8,9 +8,11 @@ public class TestCaseStep
     public string           Label        { get; set; } = "";
     public int              DataSetId    { get; set; }
     public string           SqlScript    { get; set; } = "";
-    public string           HttpMethod   { get; set; } = "GET";
-    public string           Url          { get; set; } = "";
-    public string           Body         { get; set; } = "";
+    public string           HttpMethod            { get; set; } = "GET";
+    public string           Url                   { get; set; } = "";
+    public string           Body                  { get; set; } = "";
+    public string           ContentType           { get; set; } = "application/json";
+    public bool             UseDefaultCredentials { get; set; } = false;
     public int              SleepSeconds { get; set; } = 2;
 }
 

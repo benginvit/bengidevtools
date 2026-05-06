@@ -38,6 +38,12 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
         {
             ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
         });
+        using var httpCreds = new HttpClient(new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
+            UseDefaultCredentials = true,
+        });
+        HttpClient HttpFor(TestCaseStep s) => s.UseDefaultCredentials ? httpCreds : http;
 
         SqlConnection? conn = null;
         async Task EnsureConnAsync()
@@ -75,7 +81,7 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
 
                         case TestCaseStepType.Swagger:
                             progress($"  [HTTP] {step.HttpMethod} {step.Url}");
-                            await RunHttpCallAsync(http, step, progress, ct);
+                            await RunHttpCallAsync(HttpFor(step), step, progress, ct);
                             break;
 
                         case TestCaseStepType.Sleep:
@@ -86,7 +92,7 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
                         case TestCaseStepType.SqlForeach:
                             progress($"  [FOR] {step.Label}");
                             await EnsureConnAsync();
-                            await RunSqlForeachAsync(conn!, http, step, progress, ct);
+                            await RunSqlForeachAsync(conn!, HttpFor(step), step, progress, ct);
                             break;
                     }
                 }
@@ -182,7 +188,7 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
             {
                 using var request = new HttpRequestMessage(new HttpMethod(step.HttpMethod), url);
                 if (!string.IsNullOrEmpty(body))
-                    request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+                    request.Content = new StringContent(body, Encoding.UTF8, step.ContentType);
                 using var response = await http.SendAsync(request, ct);
                 var responseBody = await response.Content.ReadAsStringAsync(ct);
                 if (response.IsSuccessStatusCode)
@@ -226,7 +232,7 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
         {
             using var request = new HttpRequestMessage(new HttpMethod(step.HttpMethod), step.Url);
             if (!string.IsNullOrEmpty(step.Body))
-                request.Content = new StringContent(step.Body, Encoding.UTF8, "application/json");
+                request.Content = new StringContent(step.Body, Encoding.UTF8, step.ContentType);
             using var response = await http.SendAsync(request, ct);
             var body = await response.Content.ReadAsStringAsync(ct);
             progress($"    {(int)response.StatusCode} {response.ReasonPhrase}");
