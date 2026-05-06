@@ -13,8 +13,12 @@
         <button class="btn primary" @onclick="StartNew">+ Nytt</button>
         <button class="btn primary" @onclick="RunSelected"
                 disabled="@(_busy || _checked.Count == 0)">
-            @(_busy ? "⟳" : $"▶ Kör ({_checked.Count})")
+            ▶ Kör (@_checked.Count)
         </button>
+        @if (_busy)
+        {
+            <button class="btn danger" @onclick="StopRun">⏹ Avbryt</button>
+        }
         <button class="btn" @onclick="ExportSelected"
                 disabled="@(_checked.Count == 0)" title="Kopiera SQL till urklipp">
             ↓ SQL (@_checked.Count)
@@ -341,12 +345,27 @@
                         <div style="font-size:12px;margin-top:2px;font-weight:600">@_selected.Beskrivning</div>
                     </div>
                     <div style="display:flex;gap:6px;align-items:center">
-                        <button class="btn sm primary" @onclick="() => RunOne(_selected)" disabled="@_busy">▶ Kör</button>
-                        <button class="btn sm" @onclick="EditSelected">✎ Redigera</button>
-                        <button class="btn sm" @onclick="CopySelected" title="Skapa kopia av detta testfall">Kopiera</button>
-                        <button class="btn sm danger" @onclick="DeleteSelected">🗑</button>
+                        @if (_busy)
+                        {
+                            <button class="btn sm danger" @onclick="StopRun">⏹ Avbryt</button>
+                        }
+                        else
+                        {
+                            <button class="btn sm primary" @onclick="() => RunOne(_selected)">▶ Kör</button>
+                            <button class="btn sm" @onclick="EditSelected">✎ Redigera</button>
+                            <button class="btn sm" @onclick="CopySelected" title="Skapa kopia av detta testfall">Kopiera</button>
+                            <button class="btn sm danger" @onclick="DeleteSelected">🗑</button>
+                        }
                     </div>
                 </div>
+                @if (_paused)
+                {
+                    <div style="display:flex;gap:8px;align-items:center;padding:6px 12px;background:#1a1200;border-bottom:1px solid #554400">
+                        <span style="color:#ffcc44;font-size:11px">⏸ Pausad vid breakpoint</span>
+                        <button class="btn sm primary" @onclick="ResumeBreakpoint">▶ Fortsätt</button>
+                        <button class="btn sm danger"  @onclick="CancelBreakpoint">⏹ Avbryt</button>
+                    </div>
+                }
                 <div style="flex:1;overflow-y:auto;padding:10px 12px">
                     @if (_selected.Steps.Count > 0)
                     {
@@ -357,7 +376,7 @@
                             <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border)">
                                 <button class="breakpoint-btn @(step.Breakpoint ? "active" : "")"
                                         title="@(step.Breakpoint ? "Ta bort breakpoint" : "Lägg till breakpoint")"
-                                        @onclick="() => { step.Breakpoint = !step.Breakpoint; Svc.Save(); }">●</button>
+                                        @onclick="() => step.Breakpoint = !step.Breakpoint">●</button>
                                 <span style="color:var(--muted);font-size:10px;min-width:18px;text-align:right">@num.</span>
                                 <span class="action-type-badge @StepBadgeClass(step.Type)">@StepBadgeText(step.Type)</span>
                                 <span style="font-size:11px;flex:1">@StepSummary(step)</span>
@@ -417,14 +436,6 @@
                 </span>
                 <button class="btn sm" @onclick="() => _log.Clear()">✕</button>
             </div>
-            @if (_paused)
-            {
-                <div style="display:flex;gap:8px;align-items:center;padding:6px 10px;background:#1a1200;border-bottom:1px solid #554400">
-                    <span style="color:#ffcc44;font-size:11px">⏸ Pausad vid breakpoint</span>
-                    <button class="btn sm primary" @onclick="ResumeBreakpoint">▶ Fortsätt</button>
-                    <button class="btn sm danger"  @onclick="CancelBreakpoint">⏹ Avbryt</button>
-                </div>
-            }
             <div class="status-bar-log" id="testfall-log">
                 @foreach (var line in _log.AsEnumerable().Reverse())
                 {
@@ -449,7 +460,8 @@
     private TestCase     _form         = new();
     private List<string> _log          = [];
     private int          _sleepSeconds = 2;
-    private readonly CancellationTokenSource _cts = new();
+    private readonly CancellationTokenSource _cts    = new(); // component lifetime
+    private CancellationTokenSource?          _runCts;        // per-run
 
     private List<ToolboxScript>   _toolboxScripts   = [];
     private List<ToolboxScenario> _toolboxScenarios = [];
@@ -474,7 +486,7 @@
 
     protected override void OnInitialized() { Svc.Load(); DataSvc.Load(); LoadToolbox(); }
 
-    public async ValueTask DisposeAsync() { _cts.Cancel(); await Task.CompletedTask; }
+    public async ValueTask DisposeAsync() { _runCts?.Cancel(); _cts.Cancel(); await Task.CompletedTask; }
 
     // ── Toolbox ────────────────────────────────────────────────────────────────
 
@@ -812,7 +824,8 @@
     }
 
     private void ResumeBreakpoint() { _paused = false; _breakpointTcs?.TrySetResult(true); }
-    private void CancelBreakpoint()  { _paused = false; _breakpointTcs?.TrySetCanceled(); _cts.Cancel(); }
+    private void CancelBreakpoint()  { _paused = false; _breakpointTcs?.TrySetCanceled(); _runCts?.Cancel(); }
+    private void StopRun()           { _runCts?.Cancel(); }
 
     private void DeleteSelected()
     {
@@ -829,6 +842,10 @@
 
     private async Task Execute(IList<TestCase> cases)
     {
+        _runCts?.Dispose();
+        _runCts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+        var ct = _runCts.Token;
+
         _log.Clear();
         _busy = true;
         Log($"──── Kör {cases.Count} testfall ────");
@@ -837,7 +854,7 @@
         try
         {
             await Svc.RunAsync(cases, Settings.Settings.SqlConnectionString,
-                msg => _ = LogAsync(msg), OnBreakpoint, _cts.Token);
+                msg => _ = LogAsync(msg), OnBreakpoint, ct);
             Log("──── Klar ─────────────────────────────");
         }
         catch (OperationCanceledException) { Log("  Avbruten"); }
