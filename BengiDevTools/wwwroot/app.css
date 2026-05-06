@@ -362,18 +362,27 @@ body {
   flex-direction: column;
 }
 
+.toolbox-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 7px 8px 6px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
 .toolbox-section-header {
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .08em;
   color: var(--muted);
-  padding: 8px 8px 4px;
+  padding: 7px 8px 4px;
   position: sticky;
   top: 0;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  margin-bottom: 2px;
 }
 
 .toolbox-item {
@@ -385,7 +394,9 @@ body {
   font-size: 11px;
   min-width: 0;
 }
-.toolbox-item:hover { background: var(--hover); }
+.toolbox-item:hover          { background: var(--hover); }
+.toolbox-item-disabled       { opacity: .4; cursor: default; }
+.toolbox-item-disabled:hover { background: none; }
 
 .toolbox-item-name {
   overflow: hidden;

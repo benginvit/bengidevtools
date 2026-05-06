@@ -330,39 +330,49 @@
             }
         </div>
 
-        @if (_editMode && _form is not null)
-        {
-            <div class="testfall-toolbox">
-                @if (_toolboxScripts.Count > 0)
+        <div class="testfall-toolbox">
+            <div class="toolbox-header">Verktygslåda</div>
+
+            @if (_toolboxScripts.Count > 0)
+            {
+                <div class="toolbox-section-header">SQL-skript</div>
+                @foreach (var s in _toolboxScripts)
                 {
-                    <div class="toolbox-section-header">SQL-skript</div>
-                    @foreach (var s in _toolboxScripts)
-                    {
-                        <div class="toolbox-item" @onclick="() => AddScriptAction(s)" title="@s.RelativePath">
-                            <span class="action-type-badge sql">SQL</span>
-                            <span class="toolbox-item-name">@s.Name</span>
-                        </div>
-                    }
-                }
-                @if (_toolboxScenarios.Count > 0)
-                {
-                    <div class="toolbox-section-header">Swagger-anrop</div>
-                    @foreach (var s in _toolboxScenarios)
-                    {
-                        <div class="toolbox-item" @onclick="() => AddScenarioAction(s)" title="@s.Url">
-                            <span class="action-type-badge swagger">@s.Method</span>
-                            <span class="toolbox-item-name">@s.Name</span>
-                        </div>
-                    }
-                }
-                @if (_toolboxScripts.Count == 0 && _toolboxScenarios.Count == 0)
-                {
-                    <div style="color:var(--muted);font-size:11px;padding:10px 8px">
-                        Inga skript eller scenarier.<br />Konfigurera sökväg under Inställningar.
+                    <div class="toolbox-item @(_editMode && _form is not null ? "" : "toolbox-item-disabled")"
+                         @onclick="() => { if (_editMode && _form is not null) AddScriptAction(s); }"
+                         title="@s.RelativePath">
+                        <span class="action-type-badge sql">SQL</span>
+                        <span class="toolbox-item-name">@s.Name</span>
                     </div>
                 }
-            </div>
-        }
+            }
+            @if (_toolboxScenarios.Count > 0)
+            {
+                <div class="toolbox-section-header">Swagger-anrop</div>
+                @foreach (var s in _toolboxScenarios)
+                {
+                    <div class="toolbox-item @(_editMode && _form is not null ? "" : "toolbox-item-disabled")"
+                         @onclick="() => { if (_editMode && _form is not null) AddScenarioAction(s); }"
+                         title="@s.Url">
+                        <span class="action-type-badge swagger">@s.Method</span>
+                        <span class="toolbox-item-name">@s.Name</span>
+                    </div>
+                }
+            }
+            @if (_toolboxScripts.Count == 0 && _toolboxScenarios.Count == 0)
+            {
+                <div style="color:var(--muted);font-size:11px;padding:10px 8px;line-height:1.5">
+                    Inga skript eller scenarier hittades.<br />
+                    Konfigurera <em>DebugScriptsPath</em> under Inställningar.
+                </div>
+            }
+            @if (!_editMode || _form is null)
+            {
+                <div style="color:var(--muted);font-size:10px;padding:8px;border-top:1px solid var(--border);margin-top:auto">
+                    Öppna ett testfall i redigeringsläge för att lägga till åtgärder.
+                </div>
+            }
+        </div>
         </div>
     </div>
 
