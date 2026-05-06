@@ -30,6 +30,7 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
     }
 
     public void Add(TestCase tc)                        { _cases.Add(tc);            Save(); }
+    public void AddRange(IEnumerable<TestCase> cases)   { _cases.AddRange(cases);   Save(); }
     public void Remove(TestCase tc)                     { _cases.Remove(tc);         Save(); }
     public void Replace(TestCase old, TestCase updated) { var i = _cases.IndexOf(old); if (i >= 0) _cases[i] = updated; Save(); }
 

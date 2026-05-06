@@ -17,7 +17,14 @@
         </button>
         <button class="btn" @onclick="ExportSelected"
                 disabled="@(_checked.Count == 0)" title="Kopiera SQL till urklipp">
-            ↓ Exportera (@_checked.Count)
+            ↓ SQL (@_checked.Count)
+        </button>
+        <button class="btn" @onclick="ExportJson"
+                disabled="@(_checked.Count == 0)" title="Ladda ner testfall som JSON-fil">
+            ↓ JSON (@_checked.Count)
+        </button>
+        <button class="btn" @onclick="() => { _importMode = !_importMode; _importText = \"\"; _importMsg = \"\"; }">
+            ↑ Importera
         </button>
         <button class="btn" @onclick="CheckAll">Välj alla</button>
         <button class="btn" @onclick="ClearChecked">Rensa val</button>
@@ -25,6 +32,24 @@
             @Filtered.Count() testfall
         </span>
     </div>
+
+    @if (_importMode)
+    {
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:10px 12px;margin-bottom:8px">
+            <div style="font-size:12px;font-weight:600;color:var(--blue);margin-bottom:6px">Importera testfall (JSON)</div>
+            <textarea class="debug-sql-editor" style="height:120px;resize:vertical"
+                      placeholder="Klistra in JSON-array med testfall..."
+                      @bind="_importText" @bind:event="oninput" />
+            <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
+                <button class="btn sm primary" @onclick="ImportJson" disabled="@string.IsNullOrWhiteSpace(_importText)">Importera</button>
+                <button class="btn sm" @onclick="() => { _importMode = false; _importText = \"\"; _importMsg = \"\"; }">Avbryt</button>
+                @if (!string.IsNullOrEmpty(_importMsg))
+                {
+                    <span style="font-size:11px;color:var(--muted)">@_importMsg</span>
+                }
+            </div>
+        </div>
+    }
 
     <div class="testfall-layout">
 
@@ -441,6 +466,9 @@
     private HashSet<int>        _tbDataChecked    = [];
     private bool                _tbSqlExpanded    = false;
     private bool                _tbApiExpanded    = false;
+    private bool                _importMode       = false;
+    private string              _importText       = "";
+    private string              _importMsg        = "";
 
     private IEnumerable<TestCase> Filtered => Svc.Cases
         .Where(tc => string.IsNullOrEmpty(_filter)
@@ -809,13 +837,45 @@
         return "var(--text)";
     }
 
-    // ── Export ─────────────────────────────────────────────────────────────────
+    // ── Export / Import ────────────────────────────────────────────────────────
 
     private async Task ExportSelected()
     {
         var cases = Filtered.Where(tc => _checked.Contains(tc.DataSetId)).ToList();
         var sql   = Svc.ExportSql(cases);
         try { await JS.InvokeVoidAsync("navigator.clipboard.writeText", sql); } catch { }
-        Log($"──── Exporterade {cases.Count} testfall till urklipp ────");
+        Log($"──── Exporterade {cases.Count} testfall (SQL) till urklipp ────");
+    }
+
+    private async Task ExportJson()
+    {
+        var cases    = Filtered.Where(tc => _checked.Contains(tc.DataSetId)).ToList();
+        var json     = System.Text.Json.JsonSerializer.Serialize(cases, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        var filename = $"testfall_{DateTime.Now:yyyyMMdd_HHmm}.json";
+        await JS.InvokeVoidAsync("downloadFile", filename, json);
+        Log($"──── Exporterade {cases.Count} testfall som {filename} ────");
+    }
+
+    private void ImportJson()
+    {
+        if (string.IsNullOrWhiteSpace(_importText)) return;
+        try
+        {
+            var incoming = System.Text.Json.JsonSerializer.Deserialize<List<TestCase>>(
+                _importText, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
+            var existing = Svc.Cases.Select(c => c.DataSetId).ToHashSet();
+            var toAdd    = incoming.Where(c => !existing.Contains(c.DataSetId)).ToList();
+            var skipped  = incoming.Count - toAdd.Count;
+            if (toAdd.Count > 0)
+                Svc.AddRange(toAdd);
+            _importMsg = skipped > 0
+                ? $"Importerade {toAdd.Count} testfall, hoppade över {skipped} (DataSetId redan finns)."
+                : $"Importerade {toAdd.Count} testfall.";
+            _importText = "";
+        }
+        catch (Exception ex)
+        {
+            _importMsg = $"Fel: {ex.Message}";
+        }
     }
 }
