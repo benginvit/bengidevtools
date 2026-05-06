@@ -166,13 +166,17 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
         }
         catch (Exception ex) { progress($"    FEL (SQL): {ex.Message}"); return; }
 
-        progress($"    {rows.Count} rader — skickar HTTP...");
+        int total = rows.Count;
+        progress($"    {total} rader — skickar HTTP...");
 
-        foreach (var row in rows)
+        int ok = 0, fel = 0;
+        for (int i = 0; i < rows.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
-            var url  = Substitute(step.Url,  row);
-            var body = Substitute(step.Body, row);
+            var row    = rows[i];
+            var url    = Substitute(step.Url,  row);
+            var body   = Substitute(step.Body, row);
+            var rowTag = RowTag(row, i, total);
             try
             {
                 using var request = new HttpRequestMessage(new HttpMethod(step.HttpMethod), url);
@@ -180,11 +184,31 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
                     request.Content = new StringContent(body, Encoding.UTF8, "application/json");
                 using var response = await http.SendAsync(request, ct);
                 var responseBody = await response.Content.ReadAsStringAsync(ct);
-                progress($"    {(int)response.StatusCode} {response.ReasonPhrase}" +
-                         (string.IsNullOrWhiteSpace(responseBody) ? "" : $"  {responseBody.Trim()[..Math.Min(120, responseBody.Trim().Length)]}"));
+                if (response.IsSuccessStatusCode)
+                {
+                    progress($"    {rowTag} → {(int)response.StatusCode} {response.ReasonPhrase}");
+                    ok++;
+                }
+                else
+                {
+                    progress($"    {rowTag} → {(int)response.StatusCode} {response.ReasonPhrase}");
+                    if (!string.IsNullOrWhiteSpace(responseBody))
+                        progress($"      {responseBody.Trim()[..Math.Min(600, responseBody.Trim().Length)]}");
+                    fel++;
+                }
             }
-            catch (Exception ex) { progress($"    FEL: {ex.Message}"); }
+            catch (Exception ex) { progress($"    {rowTag} → FEL: {ex.Message}"); fel++; }
         }
+        progress(fel == 0 ? $"    Klart: {ok}/{total} OK" : $"    Klart: {ok} OK, {fel} FEL av {total}");
+    }
+
+    private static string RowTag(Dictionary<string, string> row, int index, int total)
+    {
+        var pad = total.ToString().Length;
+        var nr  = $"rad {(index + 1).ToString().PadLeft(pad)}/{total}";
+        // Show first column that looks like an id for quick identification
+        var id  = row.GetValueOrDefault("DataSetId") ?? row.GetValueOrDefault("Id") ?? row.GetValueOrDefault("FordranId");
+        return id is not null ? $"{nr} (#{id})" : nr;
     }
 
     private static string Substitute(string template, Dictionary<string, string> row)
