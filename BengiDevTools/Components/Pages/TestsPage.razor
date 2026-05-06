@@ -231,6 +231,9 @@
                                                     <input type="checkbox" @bind="step.UseDefaultCredentials" /> UseDefaultCredentials
                                                 </label>
                                             </div>
+                                            <textarea class="debug-sql-editor" style="height:52px;resize:vertical;font-family:monospace"
+                                                      placeholder="Headers (en per rad): X-Requested-With: XMLHttpRequest" spellcheck="false"
+                                                      @bind="step.HeadersRaw" @bind:event="oninput" />
                                             <textarea class="debug-sql-editor" style="height:160px;resize:vertical"
                                                       placeholder="Body (JSON)..." spellcheck="false"
                                                       @bind="step.Body" @bind:event="oninput" />
@@ -259,6 +262,9 @@
                                                     <input type="checkbox" @bind="step.UseDefaultCredentials" /> UseDefaultCredentials
                                                 </label>
                                             </div>
+                                            <textarea class="debug-sql-editor" style="height:52px;resize:vertical;font-family:monospace"
+                                                      placeholder="Headers (en per rad): X-Requested-With: XMLHttpRequest" spellcheck="false"
+                                                      @bind="step.HeadersRaw" @bind:event="oninput" />
                                             <textarea class="debug-sql-editor" style="height:160px;resize:vertical"
                                                       placeholder="Body, t.ex. {JsonData}" spellcheck="false"
                                                       @bind="step.Body" @bind:event="oninput" />
@@ -696,6 +702,7 @@
                 Body                  = s.Body,
                 ContentType           = s.ContentType,
                 UseDefaultCredentials = s.UseDefaultCredentials,
+                HeadersRaw            = s.HeadersRaw,
                 SleepSeconds          = s.SleepSeconds,
                 PollCriteria          = s.PollCriteria,
                 PollCriteriaColumn    = s.PollCriteriaColumn,

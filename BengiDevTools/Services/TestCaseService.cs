@@ -196,6 +196,7 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
                 using var request = new HttpRequestMessage(new HttpMethod(step.HttpMethod), url);
                 if (!string.IsNullOrEmpty(body))
                     request.Content = BuildContent(body, step.ContentType);
+                ApplyHeaders(request, step.HeadersRaw);
                 using var response = await http.SendAsync(request, ct);
                 var responseBody = await response.Content.ReadAsStringAsync(ct);
                 if (response.IsSuccessStatusCode)
@@ -270,6 +271,19 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
         progress($"    Timeout efter {step.PollTimeoutSeconds}s — villkor ej uppfyllt ✗");
     }
 
+    private static void ApplyHeaders(HttpRequestMessage request, string headersRaw)
+    {
+        foreach (var line in headersRaw.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var sep = line.IndexOf(':');
+            if (sep <= 0) continue;
+            var key = line[..sep].Trim();
+            var val = line[(sep + 1)..].Trim();
+            if (!request.Headers.TryAddWithoutValidation(key, val))
+                request.Content?.Headers.TryAddWithoutValidation(key, val);
+        }
+    }
+
     private static StringContent BuildContent(string body, string contentType)
     {
         var content = new StringContent(body, Encoding.UTF8);
@@ -292,6 +306,7 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
             using var request = new HttpRequestMessage(new HttpMethod(step.HttpMethod), step.Url);
             if (!string.IsNullOrEmpty(step.Body))
                 request.Content = BuildContent(step.Body, step.ContentType);
+            ApplyHeaders(request, step.HeadersRaw);
             using var response = await http.SendAsync(request, ct);
             var body = await response.Content.ReadAsStringAsync(ct);
             progress($"    {(int)response.StatusCode} {response.ReasonPhrase}");
