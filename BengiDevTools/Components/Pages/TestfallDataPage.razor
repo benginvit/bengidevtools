@@ -1,7 +1,10 @@
 @page "/testfalldata"
 @using Microsoft.AspNetCore.Components.Forms
+@using System.Text.Json
+@using BengiDevTools.Models
 @inject ITestDataService Svc
 @inject IJSRuntime JS
+@inject ISettingsService Settings
 
 <div class="testfall-page">
 
@@ -75,8 +78,9 @@
             }
         </div>
 
-        <!-- ── Right: editor ── -->
+        <!-- ── Right: editor + toolbox ── -->
         <div class="testfall-editor">
+        <div class="testfall-form-container">
             @if (_editMode && _form is not null)
             {
                 <div class="testfall-form-header">
@@ -247,12 +251,8 @@
                     }
                     @if (_form.Actions.Count == 0)
                     {
-                        <div style="color:var(--muted);font-size:11px;padding:4px 0 6px">Inga åtgärder definierade.</div>
+                        <div style="color:var(--muted);font-size:11px;padding:4px 0 2px">Inga åtgärder — välj från verktygslådan till höger.</div>
                     }
-                    <div style="display:flex;gap:6px">
-                        <button class="btn sm" @onclick="AddSqlAction">+ SQL-skript</button>
-                        <button class="btn sm" @onclick="AddSwaggerAction">+ Swagger-anrop</button>
-                    </div>
 
                     <div class="section-header">Igun</div>
                     <div class="form-row">
@@ -329,6 +329,41 @@
                 </div>
             }
         </div>
+
+        @if (_editMode && _form is not null)
+        {
+            <div class="testfall-toolbox">
+                @if (_toolboxScripts.Count > 0)
+                {
+                    <div class="toolbox-section-header">SQL-skript</div>
+                    @foreach (var s in _toolboxScripts)
+                    {
+                        <div class="toolbox-item" @onclick="() => AddScriptAction(s)" title="@s.RelativePath">
+                            <span class="action-type-badge sql">SQL</span>
+                            <span class="toolbox-item-name">@s.Name</span>
+                        </div>
+                    }
+                }
+                @if (_toolboxScenarios.Count > 0)
+                {
+                    <div class="toolbox-section-header">Swagger-anrop</div>
+                    @foreach (var s in _toolboxScenarios)
+                    {
+                        <div class="toolbox-item" @onclick="() => AddScenarioAction(s)" title="@s.Url">
+                            <span class="action-type-badge swagger">@s.Method</span>
+                            <span class="toolbox-item-name">@s.Name</span>
+                        </div>
+                    }
+                }
+                @if (_toolboxScripts.Count == 0 && _toolboxScenarios.Count == 0)
+                {
+                    <div style="color:var(--muted);font-size:11px;padding:10px 8px">
+                        Inga skript eller scenarier.<br />Konfigurera sökväg under Inställningar.
+                    </div>
+                }
+            </div>
+        }
+        </div>
     </div>
 
 </div>
@@ -358,6 +393,8 @@
         }
     };
 
+    private record ToolboxScript(string Name, string RelativePath, string Path);
+
     private string       _filter     = "";
     private TestDataRow? _selected;
     private bool         _editMode;
@@ -369,6 +406,9 @@
     private bool         _fileLoading;
     private bool         _confirmClear;
 
+    private List<ToolboxScript> _toolboxScripts   = [];
+    private List<Scenario>      _toolboxScenarios = [];
+
     private IEnumerable<TestDataRow> Filtered => Svc.Rows
         .Where(r => string.IsNullOrEmpty(_filter)
             || r.DataSetId.ToString().Contains(_filter)
@@ -376,7 +416,60 @@
             || r.SubjektNamn.Contains(_filter, StringComparison.OrdinalIgnoreCase))
         .OrderBy(r => r.DataSetId);
 
-    protected override void OnInitialized() => Svc.Load();
+    protected override void OnInitialized()
+    {
+        Svc.Load();
+        LoadToolbox();
+    }
+
+    private void LoadToolbox()
+    {
+        var root = Settings.Settings.DebugScriptsPath;
+        if (Directory.Exists(root))
+        {
+            _toolboxScripts = Directory.GetFiles(root, "*.sql", SearchOption.AllDirectories)
+                .OrderBy(f => f)
+                .Select(f => new ToolboxScript(
+                    Name:         Path.GetFileNameWithoutExtension(f),
+                    RelativePath: Path.GetRelativePath(root, f),
+                    Path:         f))
+                .ToList();
+        }
+
+        var scenariosPath = Path.Combine(root, "scenarios.json");
+        if (File.Exists(scenariosPath))
+        {
+            try
+            {
+                _toolboxScenarios = JsonSerializer.Deserialize<List<Scenario>>(
+                    File.ReadAllText(scenariosPath)) ?? [];
+            }
+            catch { _toolboxScenarios = []; }
+        }
+    }
+
+    private void AddScriptAction(ToolboxScript script)
+    {
+        var content = File.Exists(script.Path) ? File.ReadAllText(script.Path) : "";
+        _form!.Actions.Add(new TestfallAction
+        {
+            Type      = TestfallActionType.Sql,
+            Label     = script.Name,
+            SqlScript = content,
+        });
+    }
+
+    private void AddScenarioAction(Scenario s)
+    {
+        _form!.Actions.Add(new TestfallAction
+        {
+            Type       = TestfallActionType.Swagger,
+            Label      = s.Name,
+            HttpMethod = s.Method,
+            Url        = s.Url,
+            Body       = s.Body,
+        });
+    }
 
     private void Select(TestDataRow row)
     {
@@ -410,8 +503,6 @@
 
     private void CancelEdit() => _editMode = false;
 
-    private void AddSqlAction()     => _form!.Actions.Add(new TestfallAction { Type = TestfallActionType.Sql });
-    private void AddSwaggerAction() => _form!.Actions.Add(new TestfallAction { Type = TestfallActionType.Swagger });
     private void RemoveAction(int idx)     => _form!.Actions.RemoveAt(idx);
     private void MoveActionUp(int idx)
     {
