@@ -70,7 +70,24 @@
                      title="@s.RelativePath">
                     <span class="action-type-badge sql">SQL</span>
                     <span class="toolbox-item-name">@s.Name</span>
+                    <button class="btn sm toolbox-edit-btn" title="Redigera"
+                            @onclick:stopPropagation
+                            @onclick="() => StartEditSql(s)">✎</button>
                 </div>
+                @if (_editSqlPath == s.Path)
+                {
+                    <div class="toolbox-new-form">
+                        <input class="input" @bind="_editSqlName" @bind:event="oninput" />
+                        <textarea class="debug-sql-editor toolbox-new-textarea"
+                                  spellcheck="false"
+                                  @bind="_editSqlContent" @bind:event="oninput" />
+                        <div style="display:flex;gap:4px">
+                            <button class="btn sm primary" @onclick="SaveEditSql"
+                                    disabled="@string.IsNullOrWhiteSpace(_editSqlName)">Spara</button>
+                            <button class="btn sm" @onclick="CancelEditSql">Avbryt</button>
+                        </div>
+                    </div>
+                }
             }
 
             <div class="toolbox-section-header">
@@ -108,7 +125,33 @@
                      title="@s.Url">
                     <span class="action-type-badge swagger">@s.Method</span>
                     <span class="toolbox-item-name">@s.Name</span>
+                    <button class="btn sm toolbox-edit-btn" title="Redigera"
+                            @onclick:stopPropagation
+                            @onclick="() => StartEditSwagger(s)">✎</button>
                 </div>
+                @if (_editSwagId == s.Id)
+                {
+                    <div class="toolbox-new-form">
+                        <input class="input" placeholder="Namn..." @bind="_editSwagName" @bind:event="oninput" />
+                        <div style="display:flex;gap:4px">
+                            <select class="input" style="width:76px;flex-shrink:0" @bind="_editSwagMethod">
+                                <option>GET</option>
+                                <option>POST</option>
+                                <option>PUT</option>
+                                <option>DELETE</option>
+                            </select>
+                            <input class="input" placeholder="URL..." @bind="_editSwagUrl" @bind:event="oninput" />
+                        </div>
+                        <textarea class="debug-sql-editor toolbox-new-textarea"
+                                  placeholder="Body (JSON)..." spellcheck="false"
+                                  @bind="_editSwagBody" @bind:event="oninput" />
+                        <div style="display:flex;gap:4px">
+                            <button class="btn sm primary" @onclick="SaveEditSwagger"
+                                    disabled="@(string.IsNullOrWhiteSpace(_editSwagName) || string.IsNullOrWhiteSpace(_editSwagUrl))">Spara</button>
+                            <button class="btn sm" @onclick="CancelEditSwagger">Avbryt</button>
+                        </div>
+                    </div>
+                }
             }
 
             <div class="toolbox-section-header">Paus</div>
@@ -309,6 +352,15 @@
     private string _newSwagUrl    = "";
     private string _newSwagBody   = "";
 
+    private string? _editSqlPath    = null;
+    private string  _editSqlName    = "";
+    private string  _editSqlContent = "";
+    private string? _editSwagId     = null;
+    private string  _editSwagName   = "";
+    private string  _editSwagMethod = "POST";
+    private string  _editSwagUrl    = "";
+    private string  _editSwagBody   = "";
+
     private IEnumerable<TestCase> Filtered => Svc.Cases
         .Where(tc => string.IsNullOrEmpty(_filter)
             || tc.Beskrivning.Contains(_filter, StringComparison.OrdinalIgnoreCase)
@@ -373,6 +425,55 @@
     }
 
     private void CancelNewSwagger() { _newSwagOpen = false; _newSwagName = ""; _newSwagMethod = "POST"; _newSwagUrl = ""; _newSwagBody = ""; }
+
+    private void StartEditSql(ToolboxScript s)
+    {
+        _editSqlPath    = s.Path;
+        _editSqlName    = s.Name;
+        _editSqlContent = File.Exists(s.Path) ? File.ReadAllText(s.Path) : "";
+        _newSqlOpen     = false;
+    }
+
+    private void SaveEditSql()
+    {
+        if (_editSqlPath is null || string.IsNullOrWhiteSpace(_editSqlName)) return;
+        var dir  = Path.GetDirectoryName(_editSqlPath)!;
+        var safe = string.Concat(_editSqlName.Trim().Split(Path.GetInvalidFileNameChars()));
+        var newPath = Path.Combine(dir, safe + ".sql");
+        if (newPath != _editSqlPath && File.Exists(_editSqlPath))
+            File.Delete(_editSqlPath);
+        File.WriteAllText(newPath, _editSqlContent);
+        CancelEditSql();
+        LoadToolbox();
+    }
+
+    private void CancelEditSql() { _editSqlPath = null; _editSqlName = ""; _editSqlContent = ""; }
+
+    private void StartEditSwagger(Scenario s)
+    {
+        _editSwagId     = s.Id;
+        _editSwagName   = s.Name;
+        _editSwagMethod = s.Method;
+        _editSwagUrl    = s.Url;
+        _editSwagBody   = s.Body;
+        _newSwagOpen    = false;
+    }
+
+    private void SaveEditSwagger()
+    {
+        if (_editSwagId is null) return;
+        var s = _toolboxScenarios.FirstOrDefault(x => x.Id == _editSwagId);
+        if (s is null) return;
+        s.Name = _editSwagName; s.Method = _editSwagMethod; s.Url = _editSwagUrl; s.Body = _editSwagBody;
+        var root = Settings.Settings.DebugScriptsPath;
+        if (Directory.Exists(root))
+            File.WriteAllText(Path.Combine(root, "scenarios.json"),
+                System.Text.Json.JsonSerializer.Serialize(
+                    _toolboxScenarios, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        CancelEditSwagger();
+    }
+
+    private void CancelEditSwagger() { _editSwagId = null; _editSwagName = ""; _editSwagMethod = "POST"; _editSwagUrl = ""; _editSwagBody = ""; }
 
     private void AddDataRowStep(int dataSetId, string beskrivning) =>
         _form.Steps.Add(new TestCaseStep { Type = TestCaseStepType.TestfallData, DataSetId = dataSetId, Label = beskrivning });
