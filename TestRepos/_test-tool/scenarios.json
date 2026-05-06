@@ -1,0 +1,29 @@
+[
+  {
+    "Id": "a1b2c3d4-0001-0000-0000-000000000001",
+    "Name": "Trigga igun-körning",
+    "AppId": "",
+    "Method": "POST",
+    "Url": "https://localhost:5001/api/igun/run",
+    "Body": "{ \"dataSetId\": 1 }",
+    "Headers": {}
+  },
+  {
+    "Id": "a1b2c3d4-0002-0000-0000-000000000002",
+    "Name": "Hämta fordransstatus",
+    "AppId": "",
+    "Method": "GET",
+    "Url": "https://localhost:5001/api/fordran/1/status",
+    "Body": "",
+    "Headers": {}
+  },
+  {
+    "Id": "a1b2c3d4-0003-0000-0000-000000000003",
+    "Name": "Starta utbetalningskörning",
+    "AppId": "",
+    "Method": "POST",
+    "Url": "https://localhost:5002/api/utbetalning/korning/start",
+    "Body": "{ \"torsdagskörning\": true }",
+    "Headers": {}
+  }
+]

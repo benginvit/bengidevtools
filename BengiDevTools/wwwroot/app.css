@@ -472,6 +472,8 @@ body {
 
 .action-type-badge.sql     { background: #1e3a2f; color: var(--green); }
 .action-type-badge.swagger { background: #1a2a3f; color: var(--blue); }
+.action-type-badge.data    { background: #2a1f3f; color: #b09ef5; }
+.action-type-badge.sleep   { background: #2a2a1f; color: #c8b86a; }
 
 /* ─── Build page ───────────────────────────────────────────────────────────── */
 

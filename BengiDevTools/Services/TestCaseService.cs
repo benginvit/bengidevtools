@@ -28,71 +28,137 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
         File.WriteAllText(FilePath, JsonSerializer.Serialize(_cases, JsonOpts));
     }
 
-    public void Add(TestCase tc)                       { _cases.Add(tc);            Save(); }
-    public void Remove(TestCase tc)                    { _cases.Remove(tc);         Save(); }
+    public void Add(TestCase tc)                        { _cases.Add(tc);            Save(); }
+    public void Remove(TestCase tc)                     { _cases.Remove(tc);         Save(); }
     public void Replace(TestCase old, TestCase updated) { var i = _cases.IndexOf(old); if (i >= 0) _cases[i] = updated; Save(); }
 
     public async Task RunAsync(IEnumerable<TestCase> cases, string connectionString, Action<string> progress, CancellationToken ct = default)
     {
-        using var conn = new SqlConnection(connectionString);
-        await conn.OpenAsync(ct);
-
-        foreach (var tc in cases)
+        using var http = new HttpClient(new HttpClientHandler
         {
-            ct.ThrowIfCancellationRequested();
-            progress($"── #{tc.DataSetId}  {tc.Beskrivning}");
+            ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
+        });
 
-            var sqlPrefix = tc.DataRows.Count > 0
-                ? testData.GenerateSql(tc.DataRows) + "\n"
-                : "";
+        SqlConnection? conn = null;
+        async Task EnsureConnAsync()
+        {
+            if (conn is not null) return;
+            conn = new SqlConnection(connectionString);
+            await conn.OpenAsync(ct);
+        }
 
-            var batches = (sqlPrefix + tc.Sql)
-                .Split(["\nGO", "\r\nGO"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Where(b => !string.IsNullOrWhiteSpace(b))
-                .ToList();
-
-            if (batches.Count == 0) { progress("  (ingen SQL)"); continue; }
-
-            int totalRows = 0;
-            bool ok = true;
-            foreach (var batch in batches)
+        try
+        {
+            foreach (var tc in cases)
             {
-                try
-                {
-                    using var cmd    = new SqlCommand(batch, conn) { CommandTimeout = 60 };
-                    using var reader = await cmd.ExecuteReaderAsync(ct);
-                    bool anyResults  = false;
-                    do
-                    {
-                        if (!reader.HasRows) continue;
-                        anyResults = true;
-                        var cols = Enumerable.Range(0, reader.FieldCount).Select(reader.GetName).ToList();
-                        var widths = cols.Select(c => Math.Max(c.Length, 6)).ToList();
-                        progress("  " + string.Join(" | ", cols.Select((c, i) => c.PadRight(widths[i]))));
-                        progress("  " + string.Join("-+-", widths.Select(w => new string('-', w))));
-                        int rowCount = 0;
-                        while (await reader.ReadAsync(ct) && rowCount < 200)
-                        {
-                            var vals = Enumerable.Range(0, reader.FieldCount)
-                                .Select(i => reader.IsDBNull(i) ? "NULL" : reader.GetValue(i)?.ToString() ?? "")
-                                .Select((v, i) => (v.Length > widths[i] ? v[..(widths[i] - 1)] + "…" : v).PadRight(widths[i]));
-                            progress("  " + string.Join(" | ", vals));
-                            rowCount++;
-                        }
-                        if (rowCount == 200) progress("  … (max 200 rader visas)");
-                    } while (await reader.NextResultAsync(ct));
+                ct.ThrowIfCancellationRequested();
+                progress($"── #{tc.DataSetId}  {tc.Beskrivning}");
 
-                    if (!anyResults && reader.RecordsAffected > 0)
-                        totalRows += reader.RecordsAffected;
-                }
-                catch (Exception ex)
+                if (tc.Steps.Count == 0) { progress("  (inga steg)"); continue; }
+
+                foreach (var step in tc.Steps)
                 {
-                    progress($"  FEL: {ex.Message}");
-                    ok = false;
-                    break;
+                    ct.ThrowIfCancellationRequested();
+                    switch (step.Type)
+                    {
+                        case TestCaseStepType.TestfallData:
+                            progress($"  [DATA] #{step.DataSetId} {step.Label}");
+                            await EnsureConnAsync();
+                            await RunSqlBatchesAsync(conn!, testData.GenerateSql([step.DataSetId]), progress, ct);
+                            break;
+
+                        case TestCaseStepType.Sql:
+                            progress($"  [SQL] {step.Label}");
+                            await EnsureConnAsync();
+                            await RunSqlBatchesAsync(conn!, step.SqlScript, progress, ct);
+                            break;
+
+                        case TestCaseStepType.Swagger:
+                            progress($"  [HTTP] {step.HttpMethod} {step.Url}");
+                            await RunHttpCallAsync(http, step, progress, ct);
+                            break;
+
+                        case TestCaseStepType.Sleep:
+                            progress($"  [PAUS] {step.SleepSeconds}s");
+                            await Task.Delay(TimeSpan.FromSeconds(step.SleepSeconds), ct);
+                            break;
+                    }
                 }
             }
-            if (ok) progress($"  OK — {totalRows} rader påverkade");
+        }
+        finally
+        {
+            conn?.Dispose();
+        }
+    }
+
+    private static async Task RunSqlBatchesAsync(SqlConnection conn, string sql, Action<string> progress, CancellationToken ct)
+    {
+        var batches = sql
+            .Split(["\nGO", "\r\nGO"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(b => !string.IsNullOrWhiteSpace(b))
+            .ToList();
+
+        if (batches.Count == 0) { progress("    (ingen SQL)"); return; }
+
+        int totalRows = 0;
+        bool ok = true;
+        foreach (var batch in batches)
+        {
+            try
+            {
+                using var cmd    = new SqlCommand(batch, conn) { CommandTimeout = 60 };
+                using var reader = await cmd.ExecuteReaderAsync(ct);
+                bool anyResults  = false;
+                do
+                {
+                    if (!reader.HasRows) continue;
+                    anyResults = true;
+                    var cols   = Enumerable.Range(0, reader.FieldCount).Select(reader.GetName).ToList();
+                    var widths = cols.Select(c => Math.Max(c.Length, 6)).ToList();
+                    progress("    " + string.Join(" | ", cols.Select((c, i) => c.PadRight(widths[i]))));
+                    progress("    " + string.Join("-+-", widths.Select(w => new string('-', w))));
+                    int rowCount = 0;
+                    while (await reader.ReadAsync(ct) && rowCount < 200)
+                    {
+                        var vals = Enumerable.Range(0, reader.FieldCount)
+                            .Select(i => reader.IsDBNull(i) ? "NULL" : reader.GetValue(i)?.ToString() ?? "")
+                            .Select((v, i) => (v.Length > widths[i] ? v[..(widths[i] - 1)] + "…" : v).PadRight(widths[i]));
+                        progress("    " + string.Join(" | ", vals));
+                        rowCount++;
+                    }
+                    if (rowCount == 200) progress("    … (max 200 rader visas)");
+                } while (await reader.NextResultAsync(ct));
+
+                if (!anyResults && reader.RecordsAffected > 0)
+                    totalRows += reader.RecordsAffected;
+            }
+            catch (Exception ex)
+            {
+                progress($"    FEL: {ex.Message}");
+                ok = false;
+                break;
+            }
+        }
+        if (ok) progress($"    OK — {totalRows} rader påverkade");
+    }
+
+    private static async Task RunHttpCallAsync(HttpClient http, TestCaseStep step, Action<string> progress, CancellationToken ct)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(new HttpMethod(step.HttpMethod), step.Url);
+            if (!string.IsNullOrEmpty(step.Body))
+                request.Content = new StringContent(step.Body, Encoding.UTF8, "application/json");
+            using var response = await http.SendAsync(request, ct);
+            var body = await response.Content.ReadAsStringAsync(ct);
+            progress($"    {(int)response.StatusCode} {response.ReasonPhrase}");
+            if (!string.IsNullOrWhiteSpace(body))
+                progress(body.Length > 500 ? $"    {body[..497]}…" : $"    {body.Trim()}");
+        }
+        catch (Exception ex)
+        {
+            progress($"    FEL: {ex.Message}");
         }
     }
 
@@ -104,8 +170,22 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
         foreach (var tc in cases)
         {
             sb.AppendLine($"-- #{tc.DataSetId} [{tc.Tag}] {tc.Beskrivning}");
-            sb.AppendLine(tc.Sql.TrimEnd());
-            sb.AppendLine("GO");
+            foreach (var step in tc.Steps)
+            {
+                switch (step.Type)
+                {
+                    case TestCaseStepType.TestfallData:
+                        sb.AppendLine($"-- Testfallsdata #{step.DataSetId}");
+                        sb.AppendLine(testData.GenerateSql([step.DataSetId]).TrimEnd());
+                        sb.AppendLine("GO");
+                        break;
+                    case TestCaseStepType.Sql:
+                        sb.AppendLine($"-- {step.Label}");
+                        sb.AppendLine(step.SqlScript.TrimEnd());
+                        sb.AppendLine("GO");
+                        break;
+                }
+            }
             sb.AppendLine();
         }
         return sb.ToString();

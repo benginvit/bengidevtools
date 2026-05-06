@@ -1,7 +1,5 @@
 @page "/testfalldata"
 @using Microsoft.AspNetCore.Components.Forms
-@using System.Text.Json
-@using BengiDevTools.Models
 @inject ITestDataService Svc
 @inject IJSRuntime JS
 @inject ISettingsService Settings
@@ -78,9 +76,8 @@
             }
         </div>
 
-        <!-- ── Right: editor + toolbox ── -->
+        <!-- ── Right: editor ── -->
         <div class="testfall-editor">
-        <div class="testfall-form-container">
             @if (_editMode && _form is not null)
             {
                 <div class="testfall-form-header">
@@ -209,51 +206,6 @@
                         </div>
                     </div>
 
-                    <div class="section-header">Åtgärder</div>
-                    @for (int _i = 0; _i < _form.Actions.Count; _i++)
-                    {
-                        var action = _form.Actions[_i];
-                        var idx = _i;
-                        <div class="action-item">
-                            <div class="action-header">
-                                <span class="action-type-badge @(action.Type == TestfallActionType.Sql ? "sql" : "swagger")">
-                                    @(action.Type == TestfallActionType.Sql ? "SQL" : "HTTP")
-                                </span>
-                                <input class="input" style="flex:1" placeholder="Namn på åtgärden..."
-                                       @bind="action.Label" @bind:event="oninput" />
-                                <button class="btn sm" @onclick="() => MoveActionUp(idx)" disabled="@(idx == 0)">↑</button>
-                                <button class="btn sm" @onclick="() => MoveActionDown(idx)" disabled="@(idx == _form.Actions.Count - 1)">↓</button>
-                                <button class="btn sm danger" @onclick="() => RemoveAction(idx)">×</button>
-                            </div>
-                            @if (action.Type == TestfallActionType.Sql)
-                            {
-                                <textarea class="debug-sql-editor" style="height:100px;margin-top:6px;resize:vertical"
-                                          placeholder="SQL-skript..." spellcheck="false"
-                                          @bind="action.SqlScript" @bind:event="oninput" />
-                            }
-                            else
-                            {
-                                <div class="form-row" style="margin-top:6px">
-                                    <select class="input" style="width:90px" @bind="action.HttpMethod">
-                                        <option>GET</option>
-                                        <option>POST</option>
-                                        <option>PUT</option>
-                                        <option>DELETE</option>
-                                    </select>
-                                    <input class="input" style="flex:1" placeholder="https://..."
-                                           @bind="action.Url" @bind:event="oninput" />
-                                </div>
-                                <textarea class="debug-sql-editor" style="height:80px;margin-top:6px;resize:vertical"
-                                          placeholder="Body (JSON)..." spellcheck="false"
-                                          @bind="action.Body" @bind:event="oninput" />
-                            }
-                        </div>
-                    }
-                    @if (_form.Actions.Count == 0)
-                    {
-                        <div style="color:var(--muted);font-size:11px;padding:4px 0 2px">Inga åtgärder — välj från verktygslådan till höger.</div>
-                    }
-
                     <div class="section-header">Igun</div>
                     <div class="form-row">
                         <div class="form-group" style="flex:1">
@@ -300,26 +252,6 @@
                 </div>
                 <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0">
                     <pre class="build-log" style="flex:1;border-radius:0;font-size:11px;min-height:0">@PreviewSql(_selected)</pre>
-                    @if (_selected.Actions.Count > 0)
-                    {
-                        <div style="border-top:1px solid var(--border);padding:8px 10px;font-size:11px;flex-shrink:0">
-                            <div style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:5px">
-                                Åtgärder (@_selected.Actions.Count)
-                            </div>
-                            @foreach (var (a, i) in _selected.Actions.Select((a, i) => (a, i)))
-                            {
-                                <div style="display:flex;align-items:center;gap:6px;padding:2px 0">
-                                    <span style="color:var(--muted);font-size:10px;min-width:16px;text-align:right">@(i + 1).</span>
-                                    <span class="action-type-badge @(a.Type == TestfallActionType.Sql ? "sql" : "swagger")">
-                                        @(a.Type == TestfallActionType.Sql ? "SQL" : "HTTP")
-                                    </span>
-                                    <span>@(string.IsNullOrEmpty(a.Label)
-                                        ? (a.Type == TestfallActionType.Sql ? "(SQL-skript)" : a.Url)
-                                        : a.Label)</span>
-                                </div>
-                            }
-                        </div>
-                    }
                 </div>
             }
             else
@@ -328,51 +260,6 @@
                     Välj en rad i listan eller klicka + Ny rad
                 </div>
             }
-        </div>
-
-        <div class="testfall-toolbox">
-            <div class="toolbox-header">Verktygslåda</div>
-
-            @if (_toolboxScripts.Count > 0)
-            {
-                <div class="toolbox-section-header">SQL-skript</div>
-                @foreach (var s in _toolboxScripts)
-                {
-                    <div class="toolbox-item @(_editMode && _form is not null ? "" : "toolbox-item-disabled")"
-                         @onclick="() => { if (_editMode && _form is not null) AddScriptAction(s); }"
-                         title="@s.RelativePath">
-                        <span class="action-type-badge sql">SQL</span>
-                        <span class="toolbox-item-name">@s.Name</span>
-                    </div>
-                }
-            }
-            @if (_toolboxScenarios.Count > 0)
-            {
-                <div class="toolbox-section-header">Swagger-anrop</div>
-                @foreach (var s in _toolboxScenarios)
-                {
-                    <div class="toolbox-item @(_editMode && _form is not null ? "" : "toolbox-item-disabled")"
-                         @onclick="() => { if (_editMode && _form is not null) AddScenarioAction(s); }"
-                         title="@s.Url">
-                        <span class="action-type-badge swagger">@s.Method</span>
-                        <span class="toolbox-item-name">@s.Name</span>
-                    </div>
-                }
-            }
-            @if (_toolboxScripts.Count == 0 && _toolboxScenarios.Count == 0)
-            {
-                <div style="color:var(--muted);font-size:11px;padding:10px 8px;line-height:1.5">
-                    Inga skript eller scenarier hittades.<br />
-                    Konfigurera <em>DebugScriptsPath</em> under Inställningar.
-                </div>
-            }
-            @if (!_editMode || _form is null)
-            {
-                <div style="color:var(--muted);font-size:10px;padding:8px;border-top:1px solid var(--border);margin-top:auto">
-                    Öppna ett testfall i redigeringsläge för att lägga till åtgärder.
-                </div>
-            }
-        </div>
         </div>
     </div>
 
@@ -403,8 +290,6 @@
         }
     };
 
-    private record ToolboxScript(string Name, string RelativePath, string Path);
-
     private string       _filter     = "";
     private TestDataRow? _selected;
     private bool         _editMode;
@@ -416,9 +301,6 @@
     private bool         _fileLoading;
     private bool         _confirmClear;
 
-    private List<ToolboxScript> _toolboxScripts   = [];
-    private List<Scenario>      _toolboxScenarios = [];
-
     private IEnumerable<TestDataRow> Filtered => Svc.Rows
         .Where(r => string.IsNullOrEmpty(_filter)
             || r.DataSetId.ToString().Contains(_filter)
@@ -426,60 +308,7 @@
             || r.SubjektNamn.Contains(_filter, StringComparison.OrdinalIgnoreCase))
         .OrderBy(r => r.DataSetId);
 
-    protected override void OnInitialized()
-    {
-        Svc.Load();
-        LoadToolbox();
-    }
-
-    private void LoadToolbox()
-    {
-        var root = Settings.Settings.DebugScriptsPath;
-        if (Directory.Exists(root))
-        {
-            _toolboxScripts = Directory.GetFiles(root, "*.sql", SearchOption.AllDirectories)
-                .OrderBy(f => f)
-                .Select(f => new ToolboxScript(
-                    Name:         Path.GetFileNameWithoutExtension(f),
-                    RelativePath: Path.GetRelativePath(root, f),
-                    Path:         f))
-                .ToList();
-        }
-
-        var scenariosPath = Path.Combine(root, "scenarios.json");
-        if (File.Exists(scenariosPath))
-        {
-            try
-            {
-                _toolboxScenarios = JsonSerializer.Deserialize<List<Scenario>>(
-                    File.ReadAllText(scenariosPath)) ?? [];
-            }
-            catch { _toolboxScenarios = []; }
-        }
-    }
-
-    private void AddScriptAction(ToolboxScript script)
-    {
-        var content = File.Exists(script.Path) ? File.ReadAllText(script.Path) : "";
-        _form!.Actions.Add(new TestfallAction
-        {
-            Type      = TestfallActionType.Sql,
-            Label     = script.Name,
-            SqlScript = content,
-        });
-    }
-
-    private void AddScenarioAction(Scenario s)
-    {
-        _form!.Actions.Add(new TestfallAction
-        {
-            Type       = TestfallActionType.Swagger,
-            Label      = s.Name,
-            HttpMethod = s.Method,
-            Url        = s.Url,
-            Body       = s.Body,
-        });
-    }
+    protected override void OnInitialized() => Svc.Load();
 
     private void Select(TestDataRow row)
     {
@@ -512,18 +341,6 @@
     }
 
     private void CancelEdit() => _editMode = false;
-
-    private void RemoveAction(int idx)     => _form!.Actions.RemoveAt(idx);
-    private void MoveActionUp(int idx)
-    {
-        if (idx <= 0) return;
-        (_form!.Actions[idx - 1], _form.Actions[idx]) = (_form.Actions[idx], _form.Actions[idx - 1]);
-    }
-    private void MoveActionDown(int idx)
-    {
-        if (idx >= _form!.Actions.Count - 1) return;
-        (_form.Actions[idx + 1], _form.Actions[idx]) = (_form.Actions[idx], _form.Actions[idx + 1]);
-    }
 
     private void DeleteSelected()
     {
@@ -614,14 +431,5 @@
         FordranStatus                     = r.FordranStatus,
         IgunSignalPost                    = r.IgunSignalPost,
         IgunSignalResultat                = r.IgunSignalResultat,
-        Actions = r.Actions.Select(a => new TestfallAction
-        {
-            Type       = a.Type,
-            Label      = a.Label,
-            SqlScript  = a.SqlScript,
-            Url        = a.Url,
-            HttpMethod = a.HttpMethod,
-            Body       = a.Body,
-        }).ToList(),
     };
 }

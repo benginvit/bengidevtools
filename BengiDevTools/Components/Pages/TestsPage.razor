@@ -55,61 +55,126 @@
             }
         </div>
 
-        <!-- ── Right: editor / output ── -->
+        <!-- ── Right: editor / view ── -->
         <div class="testfall-editor">
             @if (_editMode)
             {
-                <!-- Add/Edit form -->
-                <div class="testfall-form-header">
-                    <span style="font-weight:600;color:var(--blue)">@(_isNew ? "Nytt testfall" : $"Redigera #{_form.DataSetId}")</span>
-                    <div style="display:flex;gap:6px">
-                        <button class="btn sm primary" @onclick="SaveForm">Spara</button>
-                        <button class="btn sm" @onclick="CancelEdit">Avbryt</button>
-                    </div>
-                </div>
-                <div class="testfall-form-body">
-                    <div class="form-row">
-                        <div class="form-group" style="width:120px">
-                            <label class="form-label">DataSetId</label>
-                            <input class="input" type="number" @bind="_form.DataSetId" />
-                        </div>
-                        <div class="form-group" style="flex:1">
-                            <label class="form-label">Tag (kategori)</label>
-                            <input class="input" @bind="_form.Tag" @bind:event="oninput" placeholder="t.ex. EM, AM, Igun" />
+                <div class="testfall-form-container">
+                    <div class="testfall-form-header">
+                        <span style="font-weight:600;color:var(--blue)">@(_isNew ? "Nytt testfall" : $"Redigera #{_form.DataSetId}")</span>
+                        <div style="display:flex;gap:6px">
+                            <button class="btn sm primary" @onclick="SaveForm">Spara</button>
+                            <button class="btn sm" @onclick="CancelEdit">Avbryt</button>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Beskrivning</label>
-                        <input class="input" @bind="_form.Beskrivning" @bind:event="oninput" />
-                    </div>
-                    @if (DataSvc.Rows.Count > 0)
-                    {
-                        <div class="form-group">
-                            <label class="form-label">Testfalldata (@@TestDataMPM-rader)</label>
-                            <div style="display:flex;flex-wrap:wrap;gap:4px;padding:6px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius)">
-                                @foreach (var row in DataSvc.Rows.OrderBy(r => r.DataSetId))
-                                {
-                                    var isChecked = _form.DataRows.Contains(row.DataSetId);
-                                    <label class="cb" style="min-width:140px;font-size:11px">
-                                        <input type="checkbox" checked="@isChecked"
-                                               @onchange="e => ToggleDataRow(row.DataSetId, (bool)(e.Value ?? false))" />
-                                        <span style="color:var(--blue)">#@row.DataSetId</span>
-                                        <span style="color:var(--muted)">@row.Databeskrivning</span>
-                                    </label>
-                                }
+                    <div class="testfall-form-body">
+                        <div class="form-row">
+                            <div class="form-group" style="width:120px">
+                                <label class="form-label">DataSetId</label>
+                                <input class="input" type="number" @bind="_form.DataSetId" />
+                            </div>
+                            <div class="form-group" style="flex:1">
+                                <label class="form-label">Tag (kategori)</label>
+                                <input class="input" @bind="_form.Tag" @bind:event="oninput" placeholder="t.ex. EM, AM, Igun" />
                             </div>
                         </div>
-                    }
-                    <div class="form-group" style="flex:1;display:flex;flex-direction:column">
-                        <label class="form-label">SQL (separera batchar med GO)</label>
-                        <textarea class="debug-sql-editor" style="flex:1;min-height:300px;resize:vertical"
-                                  @bind="_form.Sql" @bind:event="oninput" spellcheck="false" />
+                        <div class="form-group">
+                            <label class="form-label">Beskrivning</label>
+                            <input class="input" @bind="_form.Beskrivning" @bind:event="oninput" />
+                        </div>
+
+                        <div class="section-header">Steg</div>
+                        @for (int i = 0; i < _form.Steps.Count; i++)
+                        {
+                            var step = _form.Steps[i];
+                            var idx  = i;
+                            <div class="action-item">
+                                <div class="action-header">
+                                    <span class="action-type-badge @StepBadgeClass(step.Type)">@StepBadgeText(step.Type)</span>
+                                    <span style="flex:1;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                                        @StepSummary(step)
+                                    </span>
+                                    @if (step.Type == TestCaseStepType.Sleep)
+                                    {
+                                        <input class="input" type="number" style="width:58px;text-align:center"
+                                               min="1" max="300"
+                                               @bind="step.SleepSeconds" @bind:event="oninput" />
+                                        <span style="font-size:11px;color:var(--muted)">s</span>
+                                    }
+                                    <button class="btn sm" @onclick="() => MoveStepUp(idx)"   disabled="@(idx == 0)">↑</button>
+                                    <button class="btn sm" @onclick="() => MoveStepDown(idx)" disabled="@(idx == _form.Steps.Count - 1)">↓</button>
+                                    <button class="btn sm danger" @onclick="() => RemoveStep(idx)">×</button>
+                                </div>
+                            </div>
+                        }
+                        @if (_form.Steps.Count == 0)
+                        {
+                            <div style="color:var(--muted);font-size:11px;padding:4px 0">Inga steg — klicka ett objekt i verktygslådan för att lägga till.</div>
+                        }
                     </div>
+                </div>
+
+                <div class="testfall-toolbox">
+                    <div class="toolbox-header">Verktygslåda</div>
+
+                    @if (DataSvc.Rows.Count > 0)
+                    {
+                        <div class="toolbox-section-header">Testfallsdata</div>
+                        @foreach (var row in DataSvc.Rows.OrderBy(r => r.DataSetId))
+                        {
+                            <div class="toolbox-item" @onclick="() => AddDataRowStep(row.DataSetId, row.Databeskrivning)"
+                                 title="DataSetId @row.DataSetId">
+                                <span class="action-type-badge data">DATA</span>
+                                <span class="toolbox-item-name">#@row.DataSetId @row.Databeskrivning</span>
+                            </div>
+                        }
+                    }
+
+                    @if (_toolboxScripts.Count > 0)
+                    {
+                        <div class="toolbox-section-header">SQL-skript</div>
+                        @foreach (var s in _toolboxScripts)
+                        {
+                            <div class="toolbox-item" @onclick="() => AddScriptStep(s)" title="@s.RelativePath">
+                                <span class="action-type-badge sql">SQL</span>
+                                <span class="toolbox-item-name">@s.Name</span>
+                            </div>
+                        }
+                    }
+
+                    @if (_toolboxScenarios.Count > 0)
+                    {
+                        <div class="toolbox-section-header">Swagger-anrop</div>
+                        @foreach (var s in _toolboxScenarios)
+                        {
+                            <div class="toolbox-item" @onclick="() => AddScenarioStep(s)" title="@s.Url">
+                                <span class="action-type-badge swagger">@s.Method</span>
+                                <span class="toolbox-item-name">@s.Name</span>
+                            </div>
+                        }
+                    }
+
+                    <div class="toolbox-section-header">Paus</div>
+                    <div class="toolbox-item" @onclick="AddSleepStep">
+                        <span class="action-type-badge sleep">ZZZ</span>
+                        <span class="toolbox-item-name">Vänta</span>
+                        <input class="input" type="number" style="width:44px;text-align:center;padding:1px 4px"
+                               min="1" max="300"
+                               @bind="_sleepSeconds" @bind:event="oninput"
+                               @onclick:stopPropagation />
+                        <span style="font-size:10px;color:var(--muted)">s</span>
+                    </div>
+
+                    @if (DataSvc.Rows.Count == 0 && _toolboxScripts.Count == 0 && _toolboxScenarios.Count == 0)
+                    {
+                        <div style="color:var(--muted);font-size:11px;padding:10px 8px;line-height:1.5">
+                            Konfigurera <em>DebugScriptsPath</em> under Inställningar och lägg till testfallsdata.
+                        </div>
+                    }
                 </div>
             }
             else if (_selected is not null)
             {
-                <!-- View + run selected case -->
                 <div class="testfall-form-header">
                     <div>
                         <span style="font-weight:600;color:var(--blue)">#@_selected.DataSetId</span>
@@ -120,14 +185,29 @@
                         <div style="font-size:12px;margin-top:2px">@_selected.Beskrivning</div>
                     </div>
                     <div style="display:flex;gap:6px;align-items:center">
-                        <button class="btn sm primary" @onclick="() => RunOne(_selected)"
-                                disabled="@_busy">▶ Kör</button>
+                        <button class="btn sm primary" @onclick="() => RunOne(_selected)" disabled="@_busy">▶ Kör</button>
                         <button class="btn sm" @onclick="EditSelected">✎ Redigera</button>
                         <button class="btn sm danger" @onclick="DeleteSelected">🗑</button>
                     </div>
                 </div>
-                <div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
-                    <pre class="build-log" style="flex:1;border-radius:0;font-size:11px">@_selected.Sql</pre>
+                <div style="flex:1;overflow-y:auto;padding:10px 12px">
+                    @if (_selected.Steps.Count > 0)
+                    {
+                        @for (int i = 0; i < _selected.Steps.Count; i++)
+                        {
+                            var step = _selected.Steps[i];
+                            var num  = i + 1;
+                            <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border)">
+                                <span style="color:var(--muted);font-size:10px;min-width:18px;text-align:right">@num.</span>
+                                <span class="action-type-badge @StepBadgeClass(step.Type)">@StepBadgeText(step.Type)</span>
+                                <span style="font-size:11px;flex:1">@StepSummary(step)</span>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div style="color:var(--muted);font-size:12px">Inga steg definierade.</div>
+                    }
                 </div>
             }
             else
@@ -162,15 +242,21 @@
 </div>
 
 @code {
-    private string         _filter   = "";
-    private HashSet<int>   _checked  = [];
-    private TestCase?      _selected;
-    private bool           _editMode;
-    private bool           _isNew;
-    private bool           _busy;
-    private TestCase       _form     = new();
-    private List<string>   _log      = [];
+    private record ToolboxScript(string Name, string RelativePath, string Path);
+
+    private string       _filter       = "";
+    private HashSet<int> _checked      = [];
+    private TestCase?    _selected;
+    private bool         _editMode;
+    private bool         _isNew;
+    private bool         _busy;
+    private TestCase     _form         = new();
+    private List<string> _log          = [];
+    private int          _sleepSeconds = 2;
     private readonly CancellationTokenSource _cts = new();
+
+    private List<ToolboxScript> _toolboxScripts   = [];
+    private List<Scenario>      _toolboxScenarios = [];
 
     private IEnumerable<TestCase> Filtered => Svc.Cases
         .Where(tc => string.IsNullOrEmpty(_filter)
@@ -179,9 +265,94 @@
             || tc.DataSetId.ToString().Contains(_filter))
         .OrderBy(tc => tc.DataSetId);
 
-    protected override void OnInitialized() { Svc.Load(); DataSvc.Load(); }
+    protected override void OnInitialized() { Svc.Load(); DataSvc.Load(); LoadToolbox(); }
 
     public async ValueTask DisposeAsync() { _cts.Cancel(); await Task.CompletedTask; }
+
+    // ── Toolbox ────────────────────────────────────────────────────────────────
+
+    private void LoadToolbox()
+    {
+        var root = Settings.Settings.DebugScriptsPath;
+        if (!Directory.Exists(root)) return;
+
+        _toolboxScripts = Directory.GetFiles(root, "*.sql", SearchOption.AllDirectories)
+            .OrderBy(f => f)
+            .Select(f => new ToolboxScript(
+                Name:         Path.GetFileNameWithoutExtension(f),
+                RelativePath: Path.GetRelativePath(root, f),
+                Path:         f))
+            .ToList();
+
+        var scenariosPath = Path.Combine(root, "scenarios.json");
+        if (File.Exists(scenariosPath))
+        {
+            try
+            {
+                _toolboxScenarios = System.Text.Json.JsonSerializer.Deserialize<List<Scenario>>(
+                    File.ReadAllText(scenariosPath)) ?? [];
+            }
+            catch { _toolboxScenarios = []; }
+        }
+    }
+
+    private void AddDataRowStep(int dataSetId, string beskrivning) =>
+        _form.Steps.Add(new TestCaseStep { Type = TestCaseStepType.TestfallData, DataSetId = dataSetId, Label = beskrivning });
+
+    private void AddScriptStep(ToolboxScript script)
+    {
+        var content = File.Exists(script.Path) ? File.ReadAllText(script.Path) : "";
+        _form.Steps.Add(new TestCaseStep { Type = TestCaseStepType.Sql, Label = script.Name, SqlScript = content });
+    }
+
+    private void AddScenarioStep(Scenario s) =>
+        _form.Steps.Add(new TestCaseStep { Type = TestCaseStepType.Swagger, Label = s.Name, HttpMethod = s.Method, Url = s.Url, Body = s.Body });
+
+    private void AddSleepStep() =>
+        _form.Steps.Add(new TestCaseStep { Type = TestCaseStepType.Sleep, SleepSeconds = _sleepSeconds, Label = $"Vänta {_sleepSeconds}s" });
+
+    private void RemoveStep(int idx) => _form.Steps.RemoveAt(idx);
+
+    private void MoveStepUp(int idx)
+    {
+        if (idx <= 0) return;
+        (_form.Steps[idx - 1], _form.Steps[idx]) = (_form.Steps[idx], _form.Steps[idx - 1]);
+    }
+
+    private void MoveStepDown(int idx)
+    {
+        if (idx >= _form.Steps.Count - 1) return;
+        (_form.Steps[idx + 1], _form.Steps[idx]) = (_form.Steps[idx], _form.Steps[idx + 1]);
+    }
+
+    // ── Step helpers ───────────────────────────────────────────────────────────
+
+    private static string StepBadgeClass(TestCaseStepType t) => t switch
+    {
+        TestCaseStepType.TestfallData => "data",
+        TestCaseStepType.Sql         => "sql",
+        TestCaseStepType.Swagger     => "swagger",
+        TestCaseStepType.Sleep       => "sleep",
+        _                            => "",
+    };
+
+    private static string StepBadgeText(TestCaseStepType t) => t switch
+    {
+        TestCaseStepType.TestfallData => "DATA",
+        TestCaseStepType.Sql         => "SQL",
+        TestCaseStepType.Swagger     => "HTTP",
+        TestCaseStepType.Sleep       => "ZZZ",
+        _                            => "?",
+    };
+
+    private static string StepSummary(TestCaseStep step) => step.Type switch
+    {
+        TestCaseStepType.TestfallData => $"#{step.DataSetId} {step.Label}",
+        TestCaseStepType.Sql         => step.Label,
+        TestCaseStepType.Swagger     => string.IsNullOrEmpty(step.Label) ? $"{step.HttpMethod} {step.Url}" : step.Label,
+        TestCaseStepType.Sleep       => $"Vänta {step.SleepSeconds}s",
+        _                            => step.Label,
+    };
 
     // ── Selection ──────────────────────────────────────────────────────────────
 
@@ -196,14 +367,7 @@
         if (on) _checked.Add(id); else _checked.Remove(id);
     }
 
-    private void ToggleDataRow(int id, bool on)
-    {
-        if (_form is null) return;
-        if (on) { if (!_form.DataRows.Contains(id)) _form.DataRows.Add(id); }
-        else _form.DataRows.Remove(id);
-    }
-
-    private void CheckAll()  => _checked = Filtered.Select(tc => tc.DataSetId).ToHashSet();
+    private void CheckAll()    => _checked = Filtered.Select(tc => tc.DataSetId).ToHashSet();
     private void ClearChecked() => _checked.Clear();
 
     // ── Edit ───────────────────────────────────────────────────────────────────
@@ -219,7 +383,23 @@
     private void EditSelected()
     {
         if (_selected is null) return;
-        _form     = new TestCase { DataSetId = _selected.DataSetId, Beskrivning = _selected.Beskrivning, Tag = _selected.Tag, Sql = _selected.Sql, DataRows = [.._selected.DataRows] };
+        _form = new TestCase
+        {
+            DataSetId   = _selected.DataSetId,
+            Beskrivning = _selected.Beskrivning,
+            Tag         = _selected.Tag,
+            Steps       = _selected.Steps.Select(s => new TestCaseStep
+            {
+                Type         = s.Type,
+                Label        = s.Label,
+                DataSetId    = s.DataSetId,
+                SqlScript    = s.SqlScript,
+                HttpMethod   = s.HttpMethod,
+                Url          = s.Url,
+                Body         = s.Body,
+                SleepSeconds = s.SleepSeconds,
+            }).ToList(),
+        };
         _isNew    = false;
         _editMode = true;
     }
@@ -255,7 +435,7 @@
     {
         _log.Clear();
         _busy = true;
-        Log($"──── Injicerar {cases.Count} testfall ────");
+        Log($"──── Kör {cases.Count} testfall ────");
         await InvokeAsync(StateHasChanged);
 
         try
@@ -285,9 +465,9 @@
 
     private static string LogColor(string line)
     {
-        if (line.StartsWith("────"))          return "var(--muted)";
-        if (line.Contains("FEL:"))            return "var(--red)";
-        if (line.Contains("OK"))              return "var(--green)";
+        if (line.StartsWith("────")) return "var(--muted)";
+        if (line.Contains("FEL:"))  return "var(--red)";
+        if (line.Contains("OK"))    return "var(--green)";
         return "var(--text)";
     }
 
