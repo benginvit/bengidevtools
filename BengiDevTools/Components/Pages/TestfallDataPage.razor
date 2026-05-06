@@ -406,9 +406,14 @@
         _importing = true;
         StateHasChanged();
         await Task.Yield();
-        var imported = Svc.ImportCsv(_importText);
-        foreach (var r in imported) Svc.Add(r);
-        _importMsg  = $"Importerade {imported.Count} rader.";
+        var text = _importText;
+        var count = await Task.Run(() =>
+        {
+            var imported = Svc.ImportCsv(text);
+            Svc.AddRange(imported);
+            return imported.Count;
+        });
+        _importMsg  = $"Importerade {count} rader.";
         _importText = "";
         _importing  = false;
     }

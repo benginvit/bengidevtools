@@ -8,6 +8,7 @@ public interface ITestDataService
     void Load();
     void Save();
     void Add(TestDataRow row);
+    void AddRange(IEnumerable<TestDataRow> rows);
     void Remove(TestDataRow row);
     void Replace(TestDataRow old, TestDataRow updated);
     void Clear();

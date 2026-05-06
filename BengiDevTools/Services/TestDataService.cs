@@ -28,6 +28,7 @@ public class TestDataService(ISettingsService settings) : ITestDataService
     }
 
     public void Add(TestDataRow row)                           { _rows.Add(row);            Save(); }
+    public void AddRange(IEnumerable<TestDataRow> rows)        { _rows.AddRange(rows);      Save(); }
     public void Remove(TestDataRow row)                        { _rows.Remove(row);         Save(); }
     public void Replace(TestDataRow old, TestDataRow updated)  { var i = _rows.IndexOf(old); if (i >= 0) _rows[i] = updated; Save(); }
     public void Clear()                                        { _rows.Clear();             Save(); }
