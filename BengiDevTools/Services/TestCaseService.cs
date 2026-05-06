@@ -178,8 +178,6 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
             var body   = Substitute(step.Body, row);
             var rowTag = RowTag(row, i, total);
             progress($"    {rowTag} → {step.HttpMethod} {url}");
-            if (!string.IsNullOrWhiteSpace(body))
-                progress($"      {body.Trim()[..Math.Min(800, body.Trim().Length)]}");
             try
             {
                 using var request = new HttpRequestMessage(new HttpMethod(step.HttpMethod), url);
