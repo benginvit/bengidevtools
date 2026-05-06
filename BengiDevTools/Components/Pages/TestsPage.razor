@@ -188,9 +188,6 @@
                                                       or TestCaseStepType.SqlPoll;
                             <div class="action-item">
                                 <div class="action-header">
-                                    <button class="breakpoint-btn @(step.Breakpoint ? "active" : "")"
-                                            title="@(step.Breakpoint ? "Ta bort breakpoint" : "Lägg till breakpoint")"
-                                            @onclick="() => step.Breakpoint = !step.Breakpoint">●</button>
                                     @if (canExpand)
                                     {
                                         <button class="btn sm" style="padding:0 5px;min-width:20px;font-size:11px"
@@ -337,6 +334,9 @@
                             var step = _selected.Steps[i];
                             var num  = i + 1;
                             <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border)">
+                                <button class="breakpoint-btn @(step.Breakpoint ? "active" : "")"
+                                        title="@(step.Breakpoint ? "Ta bort breakpoint" : "Lägg till breakpoint")"
+                                        @onclick="() => { step.Breakpoint = !step.Breakpoint; Svc.Save(); }">●</button>
                                 <span style="color:var(--muted);font-size:10px;min-width:18px;text-align:right">@num.</span>
                                 <span class="action-type-badge @StepBadgeClass(step.Type)">@StepBadgeText(step.Type)</span>
                                 <span style="font-size:11px;flex:1">@StepSummary(step)</span>
