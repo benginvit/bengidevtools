@@ -28,30 +28,89 @@
 
     <div class="testfall-layout">
 
-        <!-- ── Col 1 (left): Test case list ── -->
-        <div class="testfall-list">
-            @foreach (var tc in Filtered)
+        <!-- ── Col 1 (left): Toolbox ── -->
+        <div class="testfall-toolbox">
+            @if (DataSvc.Rows.Any())
             {
-                var isSelected = _selected == tc;
-                <div class="testfall-row @(isSelected ? "testfall-row-selected" : "")"
-                     @onclick="() => Select(tc)">
-                    <input type="checkbox" checked="@_checked.Contains(tc.DataSetId)"
-                           style="accent-color:var(--blue);flex-shrink:0"
-                           @onclick:stopPropagation
-                           @onchange="e => Toggle(tc.DataSetId, (bool)(e.Value ?? false))" />
-                    <span class="testfall-id">#@tc.DataSetId</span>
-                    @if (!string.IsNullOrEmpty(tc.Tag))
+                <div class="toolbox-section-header" @onclick="() => _tbDataExpanded = !_tbDataExpanded" style="cursor:pointer">
+                    <span style="flex:1">Testfallsdata</span>
+                    <span style="font-size:10px">@(_tbDataExpanded ? "▾" : "▸")</span>
+                </div>
+                @if (_tbDataExpanded)
+                {
+                    <div style="padding:4px 6px">
+                        <input class="input" style="font-size:11px" placeholder="Sök id eller namn..."
+                               @bind="_tbDataFilter" @bind:event="oninput" />
+                    </div>
+                    @foreach (var row in DataSvc.Rows
+                        .Where(r => string.IsNullOrEmpty(_tbDataFilter)
+                            || r.DataSetId.ToString().Contains(_tbDataFilter)
+                            || r.Databeskrivning.Contains(_tbDataFilter, StringComparison.OrdinalIgnoreCase))
+                        .OrderBy(r => r.DataSetId))
                     {
-                        <span class="testfall-tag">@tc.Tag</span>
+                        <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
+                             @onclick="() => { if (_editMode) AddDataRowStep(row.DataSetId, row.Databeskrivning); }">
+                            <span class="action-type-badge data">DATA</span>
+                            <span class="toolbox-item-name">#@row.DataSetId @row.Databeskrivning</span>
+                        </div>
                     }
-                    <span class="testfall-name">@tc.Beskrivning</span>
-                </div>
+                }
             }
-            @if (!Filtered.Any())
+            @if (_toolboxScripts.Any())
             {
-                <div style="padding:12px;color:var(--muted);font-size:12px">
-                    @(Svc.Cases.Count == 0 ? "Inga testfall — klicka + Nytt för att lägga till." : "Inga träffar.")
-                </div>
+                <div class="toolbox-section-header" style="margin-top:8px">SQL-skript</div>
+                @foreach (var s in _toolboxScripts)
+                {
+                    <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
+                         @onclick="() => { if (_editMode) AddScriptStep(s); }"
+                         title="@s.RelativePath">
+                        <span class="action-type-badge sql">SQL</span>
+                        <span class="toolbox-item-name">@s.Name</span>
+                    </div>
+                }
+            }
+            @if (_toolboxScenarios.Any())
+            {
+                <div class="toolbox-section-header" style="margin-top:8px">API-anrop</div>
+                @foreach (var s in _toolboxScenarios)
+                {
+                    <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
+                         @onclick="() => { if (_editMode) AddScenarioStep(s); }"
+                         title="@s.Url">
+                        <span class="action-type-badge swagger">@s.Method</span>
+                        <span class="toolbox-item-name">@s.Name</span>
+                    </div>
+                }
+            }
+            <div class="toolbox-section-header" style="margin-top:8px">Övrigt</div>
+            <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
+                 @onclick="() => { if (_editMode) AddBlankSqlStep(); }">
+                <span class="action-type-badge sql">SQL</span>
+                <span class="toolbox-item-name">Tomt SQL-steg</span>
+            </div>
+            <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
+                 @onclick="() => { if (_editMode) AddBlankSwaggerStep(); }">
+                <span class="action-type-badge swagger">HTTP</span>
+                <span class="toolbox-item-name">Tomt API-anrop</span>
+            </div>
+            <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
+                 @onclick="() => { if (_editMode) AddSqlForeachStep(); }">
+                <span class="action-type-badge foreach">FOR</span>
+                <span class="toolbox-item-name">SQL → foreach HTTP</span>
+            </div>
+            <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
+                 @onclick="() => { if (_editMode) AddSleepStep(); }">
+                <span class="action-type-badge sleep">ZZZ</span>
+                <span class="toolbox-item-name">Paus</span>
+                <input class="input" type="number" style="width:44px;text-align:center;padding:1px 4px"
+                       min="1" max="300"
+                       @bind="_sleepSeconds" @bind:event="oninput"
+                       @onclick:stopPropagation />
+                <span style="font-size:10px;color:var(--muted)">s</span>
+            </div>
+            @if (!_editMode)
+            {
+                <div class="toolbox-hint">Välj ett testfall och klicka Redigera för att lägga till steg.</div>
             }
         </div>
 
@@ -210,75 +269,30 @@
             }
         </div>
 
-        <!-- ── Col 3 (right): Toolbox ── -->
-        <div class="testfall-toolbox">
-            @if (DataSvc.Rows.Any())
+        <!-- ── Col 3 (right): Test case list ── -->
+        <div class="testfall-list">
+            @foreach (var tc in Filtered)
             {
-                <div class="toolbox-section-header">Testfallsdata</div>
-                @foreach (var row in DataSvc.Rows.OrderBy(r => r.DataSetId))
-                {
-                    <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
-                         @onclick="() => { if (_editMode) AddDataRowStep(row.DataSetId, row.Databeskrivning); }">
-                        <span class="action-type-badge data">DATA</span>
-                        <span class="toolbox-item-name">#@row.DataSetId @row.Databeskrivning</span>
-                    </div>
-                }
+                var isSelected = _selected == tc;
+                <div class="testfall-row @(isSelected ? "testfall-row-selected" : "")"
+                     @onclick="() => Select(tc)">
+                    <input type="checkbox" checked="@_checked.Contains(tc.DataSetId)"
+                           style="accent-color:var(--blue);flex-shrink:0"
+                           @onclick:stopPropagation
+                           @onchange="e => Toggle(tc.DataSetId, (bool)(e.Value ?? false))" />
+                    <span class="testfall-id">#@tc.DataSetId</span>
+                    @if (!string.IsNullOrEmpty(tc.Tag))
+                    {
+                        <span class="testfall-tag">@tc.Tag</span>
+                    }
+                    <span class="testfall-name">@tc.Beskrivning</span>
+                </div>
             }
-            @if (_toolboxScripts.Any())
+            @if (!Filtered.Any())
             {
-                <div class="toolbox-section-header" style="margin-top:8px">SQL-skript</div>
-                @foreach (var s in _toolboxScripts)
-                {
-                    <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
-                         @onclick="() => { if (_editMode) AddScriptStep(s); }"
-                         title="@s.RelativePath">
-                        <span class="action-type-badge sql">SQL</span>
-                        <span class="toolbox-item-name">@s.Name</span>
-                    </div>
-                }
-            }
-            @if (_toolboxScenarios.Any())
-            {
-                <div class="toolbox-section-header" style="margin-top:8px">API-anrop</div>
-                @foreach (var s in _toolboxScenarios)
-                {
-                    <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
-                         @onclick="() => { if (_editMode) AddScenarioStep(s); }"
-                         title="@s.Url">
-                        <span class="action-type-badge swagger">@s.Method</span>
-                        <span class="toolbox-item-name">@s.Name</span>
-                    </div>
-                }
-            }
-            <div class="toolbox-section-header" style="margin-top:8px">Övrigt</div>
-            <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
-                 @onclick="() => { if (_editMode) AddBlankSqlStep(); }">
-                <span class="action-type-badge sql">SQL</span>
-                <span class="toolbox-item-name">Tomt SQL-steg</span>
-            </div>
-            <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
-                 @onclick="() => { if (_editMode) AddBlankSwaggerStep(); }">
-                <span class="action-type-badge swagger">HTTP</span>
-                <span class="toolbox-item-name">Tomt API-anrop</span>
-            </div>
-            <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
-                 @onclick="() => { if (_editMode) AddSqlForeachStep(); }">
-                <span class="action-type-badge foreach">FOR</span>
-                <span class="toolbox-item-name">SQL → foreach HTTP</span>
-            </div>
-            <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
-                 @onclick="() => { if (_editMode) AddSleepStep(); }">
-                <span class="action-type-badge sleep">ZZZ</span>
-                <span class="toolbox-item-name">Paus</span>
-                <input class="input" type="number" style="width:44px;text-align:center;padding:1px 4px"
-                       min="1" max="300"
-                       @bind="_sleepSeconds" @bind:event="oninput"
-                       @onclick:stopPropagation />
-                <span style="font-size:10px;color:var(--muted)">s</span>
-            </div>
-            @if (!_editMode)
-            {
-                <div class="toolbox-hint">Välj ett testfall och klicka Redigera för att lägga till steg.</div>
+                <div style="padding:12px;color:var(--muted);font-size:12px">
+                    @(Svc.Cases.Count == 0 ? "Inga testfall — klicka + Nytt för att lägga till." : "Inga träffar.")
+                </div>
             }
         </div>
 
@@ -323,6 +337,8 @@
     private List<ToolboxScript> _toolboxScripts   = [];
     private List<Scenario>      _toolboxScenarios = [];
     private HashSet<int>        _expandedSteps    = [];
+    private bool                _tbDataExpanded   = true;
+    private string              _tbDataFilter     = "";
 
     private IEnumerable<TestCase> Filtered => Svc.Cases
         .Where(tc => string.IsNullOrEmpty(_filter)
