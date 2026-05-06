@@ -87,24 +87,25 @@
                     }
                 }
             }
-            @if (_toolboxScenarios.Any())
+            <div class="toolbox-section-header" style="margin-top:8px;cursor:pointer"
+                 @onclick="() => _tbApiExpanded = !_tbApiExpanded">
+                <span style="flex:1">API-anrop</span>
+                <span style="font-size:10px">@(_tbApiExpanded ? "▾" : "▸")</span>
+            </div>
+            @if (_tbApiExpanded)
             {
-                <div class="toolbox-section-header" style="margin-top:8px;cursor:pointer"
-                     @onclick="() => _tbApiExpanded = !_tbApiExpanded">
-                    <span style="flex:1">API-anrop</span>
-                    <span style="font-size:10px">@(_tbApiExpanded ? "▾" : "▸")</span>
-                </div>
-                @if (_tbApiExpanded)
+                @if (_toolboxScenarios.Count == 0)
                 {
-                    @foreach (var s in _toolboxScenarios)
-                    {
-                        <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
-                             @onclick="() => { if (_editMode) AddScenarioStep(s); }"
-                             title="@s.Url">
-                            <span class="action-type-badge swagger">@s.Method</span>
-                            <span class="toolbox-item-name">@s.Name</span>
-                        </div>
-                    }
+                    <div style="padding:4px 8px;font-size:11px;color:var(--muted)">Inga mallar — spara ett steg som mall.</div>
+                }
+                @foreach (var s in _toolboxScenarios)
+                {
+                    <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
+                         @onclick="() => { if (_editMode) AddScenarioStep(s); }"
+                         title="@s.Url">
+                        <span class="action-type-badge swagger">@s.Method</span>
+                        <span class="toolbox-item-name">@s.Name</span>
+                    </div>
                 }
             }
             <div class="toolbox-section-header" style="margin-top:8px">Övrigt</div>
@@ -224,6 +225,11 @@
                                             <textarea class="debug-sql-editor" style="height:160px;resize:vertical"
                                                       placeholder="Body (JSON)..." spellcheck="false"
                                                       @bind="step.Body" @bind:event="oninput" />
+                                            <div style="display:flex;justify-content:flex-end">
+                                                <button class="btn sm" @onclick="() => SaveStepAsTemplate(step)" title="Spara som mall i verktygslådan">
+                                                    💾 Spara som mall
+                                                </button>
+                                            </div>
                                         }
                                         else if (step.Type == TestCaseStepType.SqlForeach)
                                         {
@@ -475,8 +481,35 @@
 
     private void AddScenarioStep(Scenario s)
     {
-        _form.Steps.Add(new TestCaseStep { Type = TestCaseStepType.Swagger, Label = s.Name, HttpMethod = s.Method, Url = s.Url, Body = s.Body });
+        _form.Steps.Add(new TestCaseStep {
+            Type                  = TestCaseStepType.Swagger,
+            Label                 = s.Name,
+            HttpMethod            = s.Method,
+            Url                   = s.Url,
+            Body                  = s.Body,
+            ContentType           = s.ContentType,
+            UseDefaultCredentials = s.UseDefaultCredentials,
+        });
         _expandedSteps.Add(_form.Steps.Count - 1);
+    }
+
+    private void SaveStepAsTemplate(TestCaseStep step)
+    {
+        var scenario = new Scenario
+        {
+            Name                  = string.IsNullOrWhiteSpace(step.Label) ? "API-anrop" : step.Label,
+            Method                = step.HttpMethod,
+            Url                   = step.Url,
+            Body                  = step.Body,
+            ContentType           = step.ContentType,
+            UseDefaultCredentials = step.UseDefaultCredentials,
+        };
+        _toolboxScenarios.Add(scenario);
+        var path = Path.Combine(Settings.Settings.DebugScriptsPath, "scenarios.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(
+            _toolboxScenarios, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        _tbApiExpanded = true;
     }
 
     private void AddSqlForeachStep()
