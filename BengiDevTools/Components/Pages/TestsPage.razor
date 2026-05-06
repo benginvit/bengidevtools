@@ -160,37 +160,8 @@
                         }
                         @if (_form.Steps.Count == 0)
                         {
-                            <div style="color:var(--muted);font-size:11px;padding:4px 0">Inga steg — använd fältet nedan för att lägga till.</div>
+                            <div style="color:var(--muted);font-size:11px;padding:4px 0">Inga steg — klicka ett objekt i verktygslådan till höger.</div>
                         }
-                    </div>
-                    <!-- ── Add-step bar ── -->
-                    <div class="add-step-bar">
-                        @foreach (var row in DataSvc.Rows.OrderBy(r => r.DataSetId))
-                        {
-                            <button class="add-step-chip" @onclick="() => AddDataRowStep(row.DataSetId, row.Databeskrivning)"
-                                    title="DataSetId @row.DataSetId">
-                                <span class="action-type-badge data">DATA</span>
-                                #@row.DataSetId @row.Databeskrivning
-                            </button>
-                        }
-                        @foreach (var s in _toolboxScripts)
-                        {
-                            <button class="add-step-chip" @onclick="() => AddScriptStep(s)" title="@s.RelativePath">
-                                <span class="action-type-badge sql">SQL</span>
-                                @s.Name
-                            </button>
-                        }
-                        @foreach (var s in _toolboxScenarios)
-                        {
-                            <button class="add-step-chip" @onclick="() => AddScenarioStep(s)" title="@s.Url">
-                                <span class="action-type-badge swagger">@s.Method</span>
-                                @s.Name
-                            </button>
-                        }
-                        <button class="btn sm" @onclick="AddBlankSqlStep">+ SQL</button>
-                        <button class="btn sm" @onclick="AddSqlForeachStep">+ SQL→HTTP</button>
-                        <button class="btn sm" @onclick="AddBlankSwaggerStep">+ API</button>
-                        <button class="btn sm" @onclick="AddSleepStep">+ Paus @(_sleepSeconds)s</button>
                     </div>
                 </div>
             }
@@ -236,6 +207,78 @@
                 <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:12px">
                     Välj ett testfall i listan eller klicka + Nytt
                 </div>
+            }
+        </div>
+
+        <!-- ── Col 3 (right): Toolbox ── -->
+        <div class="testfall-toolbox">
+            @if (DataSvc.Rows.Any())
+            {
+                <div class="toolbox-section-header">Testfallsdata</div>
+                @foreach (var row in DataSvc.Rows.OrderBy(r => r.DataSetId))
+                {
+                    <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
+                         @onclick="() => { if (_editMode) AddDataRowStep(row.DataSetId, row.Databeskrivning); }">
+                        <span class="action-type-badge data">DATA</span>
+                        <span class="toolbox-item-name">#@row.DataSetId @row.Databeskrivning</span>
+                    </div>
+                }
+            }
+            @if (_toolboxScripts.Any())
+            {
+                <div class="toolbox-section-header" style="margin-top:8px">SQL-skript</div>
+                @foreach (var s in _toolboxScripts)
+                {
+                    <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
+                         @onclick="() => { if (_editMode) AddScriptStep(s); }"
+                         title="@s.RelativePath">
+                        <span class="action-type-badge sql">SQL</span>
+                        <span class="toolbox-item-name">@s.Name</span>
+                    </div>
+                }
+            }
+            @if (_toolboxScenarios.Any())
+            {
+                <div class="toolbox-section-header" style="margin-top:8px">API-anrop</div>
+                @foreach (var s in _toolboxScenarios)
+                {
+                    <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
+                         @onclick="() => { if (_editMode) AddScenarioStep(s); }"
+                         title="@s.Url">
+                        <span class="action-type-badge swagger">@s.Method</span>
+                        <span class="toolbox-item-name">@s.Name</span>
+                    </div>
+                }
+            }
+            <div class="toolbox-section-header" style="margin-top:8px">Övrigt</div>
+            <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
+                 @onclick="() => { if (_editMode) AddBlankSqlStep(); }">
+                <span class="action-type-badge sql">SQL</span>
+                <span class="toolbox-item-name">Tomt SQL-steg</span>
+            </div>
+            <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
+                 @onclick="() => { if (_editMode) AddBlankSwaggerStep(); }">
+                <span class="action-type-badge swagger">HTTP</span>
+                <span class="toolbox-item-name">Tomt API-anrop</span>
+            </div>
+            <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
+                 @onclick="() => { if (_editMode) AddSqlForeachStep(); }">
+                <span class="action-type-badge foreach">FOR</span>
+                <span class="toolbox-item-name">SQL → foreach HTTP</span>
+            </div>
+            <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
+                 @onclick="() => { if (_editMode) AddSleepStep(); }">
+                <span class="action-type-badge sleep">ZZZ</span>
+                <span class="toolbox-item-name">Paus</span>
+                <input class="input" type="number" style="width:44px;text-align:center;padding:1px 4px"
+                       min="1" max="300"
+                       @bind="_sleepSeconds" @bind:event="oninput"
+                       @onclick:stopPropagation />
+                <span style="font-size:10px;color:var(--muted)">s</span>
+            </div>
+            @if (!_editMode)
+            {
+                <div class="toolbox-hint">Välj ett testfall och klicka Redigera för att lägga till steg.</div>
             }
         </div>
 
