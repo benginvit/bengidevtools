@@ -26,7 +26,7 @@
         </span>
     </div>
 
-    <div class="testfall-layout @(_editMode ? "testfall-layout-editing" : "")">
+    <div class="testfall-layout">
 
         <!-- ── Col 1 (left): Test case list ── -->
         <div class="testfall-list">
@@ -55,7 +55,7 @@
             }
         </div>
 
-        <!-- ── Col 2 (middle): Editor / view ── -->
+        <!-- ── Col 2 (right): Editor / view ── -->
         <div class="testfall-editor">
             @if (_editMode)
             {
@@ -160,8 +160,37 @@
                         }
                         @if (_form.Steps.Count == 0)
                         {
-                            <div style="color:var(--muted);font-size:11px;padding:4px 0">Inga steg — klicka ett objekt i verktygslådan för att lägga till.</div>
+                            <div style="color:var(--muted);font-size:11px;padding:4px 0">Inga steg — använd fältet nedan för att lägga till.</div>
                         }
+                    </div>
+                    <!-- ── Add-step bar ── -->
+                    <div class="add-step-bar">
+                        @foreach (var row in DataSvc.Rows.OrderBy(r => r.DataSetId))
+                        {
+                            <button class="add-step-chip" @onclick="() => AddDataRowStep(row.DataSetId, row.Databeskrivning)"
+                                    title="DataSetId @row.DataSetId">
+                                <span class="action-type-badge data">DATA</span>
+                                #@row.DataSetId @row.Databeskrivning
+                            </button>
+                        }
+                        @foreach (var s in _toolboxScripts)
+                        {
+                            <button class="add-step-chip" @onclick="() => AddScriptStep(s)" title="@s.RelativePath">
+                                <span class="action-type-badge sql">SQL</span>
+                                @s.Name
+                            </button>
+                        }
+                        @foreach (var s in _toolboxScenarios)
+                        {
+                            <button class="add-step-chip" @onclick="() => AddScenarioStep(s)" title="@s.Url">
+                                <span class="action-type-badge swagger">@s.Method</span>
+                                @s.Name
+                            </button>
+                        }
+                        <button class="btn sm" @onclick="AddBlankSqlStep">+ SQL</button>
+                        <button class="btn sm" @onclick="AddSqlForeachStep">+ SQL→HTTP</button>
+                        <button class="btn sm" @onclick="AddBlankSwaggerStep">+ API</button>
+                        <button class="btn sm" @onclick="AddSleepStep">+ Paus @(_sleepSeconds)s</button>
                     </div>
                 </div>
             }
@@ -209,156 +238,6 @@
                 </div>
             }
         </div>
-        <!-- ── Col 3 (right): Toolbox ── -->
-        <div class="testfall-toolbox">
-            @if (DataSvc.Rows.Count > 0)
-            {
-                <div class="toolbox-section-header">Testfallsdata</div>
-                @foreach (var row in DataSvc.Rows.OrderBy(r => r.DataSetId))
-                {
-                    <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
-                         @onclick="() => { if (_editMode) AddDataRowStep(row.DataSetId, row.Databeskrivning); }"
-                         title="DataSetId @row.DataSetId">
-                        <span class="action-type-badge data">DATA</span>
-                        <span class="toolbox-item-name">#@row.DataSetId @row.Databeskrivning</span>
-                    </div>
-                }
-            }
-
-            <div class="toolbox-section-header">
-                <span style="flex:1">SQL-skript</span>
-                <button class="btn sm toolbox-add-btn" @onclick="() => { _newSqlOpen = !_newSqlOpen; _newSwagOpen = false; }"
-                        title="Skapa nytt SQL-skript">+</button>
-            </div>
-            @if (_newSqlOpen)
-            {
-                <div class="toolbox-new-form">
-                    <input class="input" placeholder="Namn..." @bind="_newSqlName" @bind:event="oninput" />
-                    <textarea class="debug-sql-editor toolbox-new-textarea"
-                              placeholder="SQL-skript..." spellcheck="false"
-                              @bind="_newSqlContent" @bind:event="oninput" />
-                    <div style="display:flex;gap:4px">
-                        <button class="btn sm primary" @onclick="SaveNewSql"
-                                disabled="@string.IsNullOrWhiteSpace(_newSqlName)">Spara</button>
-                        <button class="btn sm" @onclick="CancelNewSql">Avbryt</button>
-                    </div>
-                </div>
-            }
-            @foreach (var s in _toolboxScripts)
-            {
-                <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
-                     @onclick="() => { if (_editMode) AddScriptStep(s); }"
-                     title="@s.RelativePath">
-                    <span class="action-type-badge sql">SQL</span>
-                    <span class="toolbox-item-name">@s.Name</span>
-                    <button class="btn sm toolbox-edit-btn" title="Redigera"
-                            @onclick:stopPropagation
-                            @onclick="() => StartEditSql(s)">✎</button>
-                </div>
-                @if (_editSqlPath == s.Path)
-                {
-                    <div class="toolbox-new-form">
-                        <input class="input" @bind="_editSqlName" @bind:event="oninput" />
-                        <textarea class="debug-sql-editor toolbox-new-textarea"
-                                  spellcheck="false"
-                                  @bind="_editSqlContent" @bind:event="oninput" />
-                        <div style="display:flex;gap:4px">
-                            <button class="btn sm primary" @onclick="SaveEditSql"
-                                    disabled="@string.IsNullOrWhiteSpace(_editSqlName)">Spara</button>
-                            <button class="btn sm" @onclick="CancelEditSql">Avbryt</button>
-                        </div>
-                    </div>
-                }
-            }
-
-            <div class="toolbox-section-header">
-                <span style="flex:1">Swagger-anrop</span>
-                <button class="btn sm toolbox-add-btn" @onclick="() => { _newSwagOpen = !_newSwagOpen; _newSqlOpen = false; }"
-                        title="Skapa nytt Swagger-anrop">+</button>
-            </div>
-            @if (_newSwagOpen)
-            {
-                <div class="toolbox-new-form">
-                    <input class="input" placeholder="Namn..." @bind="_newSwagName" @bind:event="oninput" />
-                    <div style="display:flex;gap:4px">
-                        <select class="input" style="width:76px;flex-shrink:0" @bind="_newSwagMethod">
-                            <option>GET</option>
-                            <option>POST</option>
-                            <option>PUT</option>
-                            <option>DELETE</option>
-                        </select>
-                        <input class="input" placeholder="URL..." @bind="_newSwagUrl" @bind:event="oninput" />
-                    </div>
-                    <textarea class="debug-sql-editor toolbox-new-textarea"
-                              placeholder="Body (JSON)..." spellcheck="false"
-                              @bind="_newSwagBody" @bind:event="oninput" />
-                    <div style="display:flex;gap:4px">
-                        <button class="btn sm primary" @onclick="SaveNewSwagger"
-                                disabled="@(string.IsNullOrWhiteSpace(_newSwagName) || string.IsNullOrWhiteSpace(_newSwagUrl))">Spara</button>
-                        <button class="btn sm" @onclick="CancelNewSwagger">Avbryt</button>
-                    </div>
-                </div>
-            }
-            @foreach (var s in _toolboxScenarios)
-            {
-                <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
-                     @onclick="() => { if (_editMode) AddScenarioStep(s); }"
-                     title="@s.Url">
-                    <span class="action-type-badge swagger">@s.Method</span>
-                    <span class="toolbox-item-name">@s.Name</span>
-                    <button class="btn sm toolbox-edit-btn" title="Redigera"
-                            @onclick:stopPropagation
-                            @onclick="() => StartEditSwagger(s)">✎</button>
-                </div>
-                @if (_editSwagId == s.Id)
-                {
-                    <div class="toolbox-new-form">
-                        <input class="input" placeholder="Namn..." @bind="_editSwagName" @bind:event="oninput" />
-                        <div style="display:flex;gap:4px">
-                            <select class="input" style="width:76px;flex-shrink:0" @bind="_editSwagMethod">
-                                <option>GET</option>
-                                <option>POST</option>
-                                <option>PUT</option>
-                                <option>DELETE</option>
-                            </select>
-                            <input class="input" placeholder="URL..." @bind="_editSwagUrl" @bind:event="oninput" />
-                        </div>
-                        <textarea class="debug-sql-editor toolbox-new-textarea"
-                                  placeholder="Body (JSON)..." spellcheck="false"
-                                  @bind="_editSwagBody" @bind:event="oninput" />
-                        <div style="display:flex;gap:4px">
-                            <button class="btn sm primary" @onclick="SaveEditSwagger"
-                                    disabled="@(string.IsNullOrWhiteSpace(_editSwagName) || string.IsNullOrWhiteSpace(_editSwagUrl))">Spara</button>
-                            <button class="btn sm" @onclick="CancelEditSwagger">Avbryt</button>
-                        </div>
-                    </div>
-                }
-            }
-
-            <div class="toolbox-section-header">SQL → HTTP</div>
-            <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
-                 @onclick="() => { if (_editMode) AddSqlForeachStep(); }">
-                <span class="action-type-badge foreach">FOR</span>
-                <span class="toolbox-item-name">SQL → foreach HTTP</span>
-            </div>
-
-            <div class="toolbox-section-header">Paus</div>
-            <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
-                 @onclick="() => { if (_editMode) AddSleepStep(); }">
-                <span class="action-type-badge sleep">ZZZ</span>
-                <span class="toolbox-item-name">Vänta</span>
-                <input class="input" type="number" style="width:44px;text-align:center;padding:1px 4px"
-                       min="1" max="300"
-                       @bind="_sleepSeconds" @bind:event="oninput"
-                       @onclick:stopPropagation />
-                <span style="font-size:10px;color:var(--muted)">s</span>
-            </div>
-
-            @if (!_editMode)
-            {
-                <div class="toolbox-hint">Redigera ett testfall för att lägga till steg.</div>
-            }
-        </div>
 
     </div>
 
@@ -402,24 +281,6 @@
     private List<Scenario>      _toolboxScenarios = [];
     private HashSet<int>        _expandedSteps    = [];
 
-    private bool   _newSqlOpen    = false;
-    private string _newSqlName    = "";
-    private string _newSqlContent = "";
-    private bool   _newSwagOpen   = false;
-    private string _newSwagName   = "";
-    private string _newSwagMethod = "POST";
-    private string _newSwagUrl    = "";
-    private string _newSwagBody   = "";
-
-    private string? _editSqlPath    = null;
-    private string  _editSqlName    = "";
-    private string  _editSqlContent = "";
-    private string? _editSwagId     = null;
-    private string  _editSwagName   = "";
-    private string  _editSwagMethod = "POST";
-    private string  _editSwagUrl    = "";
-    private string  _editSwagBody   = "";
-
     private IEnumerable<TestCase> Filtered => Svc.Cases
         .Where(tc => string.IsNullOrEmpty(_filter)
             || tc.Beskrivning.Contains(_filter, StringComparison.OrdinalIgnoreCase)
@@ -458,89 +319,33 @@
         }
     }
 
-    private void SaveNewSql()
-    {
-        if (string.IsNullOrWhiteSpace(_newSqlName)) return;
-        var root = Settings.Settings.DebugScriptsPath;
-        if (!Directory.Exists(root)) return;
-        var safe = string.Concat(_newSqlName.Trim().Split(Path.GetInvalidFileNameChars()));
-        File.WriteAllText(Path.Combine(root, safe + ".sql"), _newSqlContent);
-        CancelNewSql();
-        LoadToolbox();
-    }
-
-    private void CancelNewSql() { _newSqlOpen = false; _newSqlName = ""; _newSqlContent = ""; }
-
-    private void SaveNewSwagger()
-    {
-        if (string.IsNullOrWhiteSpace(_newSwagName) || string.IsNullOrWhiteSpace(_newSwagUrl)) return;
-        var root = Settings.Settings.DebugScriptsPath;
-        if (!Directory.Exists(root)) return;
-        _toolboxScenarios.Add(new Scenario { Name = _newSwagName, Method = _newSwagMethod, Url = _newSwagUrl, Body = _newSwagBody });
-        var path = Path.Combine(root, "scenarios.json");
-        File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(
-            _toolboxScenarios, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
-        CancelNewSwagger();
-    }
-
-    private void CancelNewSwagger() { _newSwagOpen = false; _newSwagName = ""; _newSwagMethod = "POST"; _newSwagUrl = ""; _newSwagBody = ""; }
-
-    private void StartEditSql(ToolboxScript s)
-    {
-        _editSqlPath    = s.Path;
-        _editSqlName    = s.Name;
-        _editSqlContent = File.Exists(s.Path) ? File.ReadAllText(s.Path) : "";
-        _newSqlOpen     = false;
-    }
-
-    private void SaveEditSql()
-    {
-        if (_editSqlPath is null || string.IsNullOrWhiteSpace(_editSqlName)) return;
-        var dir  = Path.GetDirectoryName(_editSqlPath)!;
-        var safe = string.Concat(_editSqlName.Trim().Split(Path.GetInvalidFileNameChars()));
-        var newPath = Path.Combine(dir, safe + ".sql");
-        if (newPath != _editSqlPath && File.Exists(_editSqlPath))
-            File.Delete(_editSqlPath);
-        File.WriteAllText(newPath, _editSqlContent);
-        CancelEditSql();
-        LoadToolbox();
-    }
-
-    private void CancelEditSql() { _editSqlPath = null; _editSqlName = ""; _editSqlContent = ""; }
-
-    private void StartEditSwagger(Scenario s)
-    {
-        _editSwagId     = s.Id;
-        _editSwagName   = s.Name;
-        _editSwagMethod = s.Method;
-        _editSwagUrl    = s.Url;
-        _editSwagBody   = s.Body;
-        _newSwagOpen    = false;
-    }
-
-    private void SaveEditSwagger()
-    {
-        if (_editSwagId is null) return;
-        var s = _toolboxScenarios.FirstOrDefault(x => x.Id == _editSwagId);
-        if (s is null) return;
-        s.Name = _editSwagName; s.Method = _editSwagMethod; s.Url = _editSwagUrl; s.Body = _editSwagBody;
-        var root = Settings.Settings.DebugScriptsPath;
-        if (Directory.Exists(root))
-            File.WriteAllText(Path.Combine(root, "scenarios.json"),
-                System.Text.Json.JsonSerializer.Serialize(
-                    _toolboxScenarios, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
-        CancelEditSwagger();
-    }
-
-    private void CancelEditSwagger() { _editSwagId = null; _editSwagName = ""; _editSwagMethod = "POST"; _editSwagUrl = ""; _editSwagBody = ""; }
-
     private void ToggleExpand(int idx)
     {
         if (!_expandedSteps.Remove(idx)) _expandedSteps.Add(idx);
     }
 
-    private void AddDataRowStep(int dataSetId, string beskrivning) =>
-        _form.Steps.Add(new TestCaseStep { Type = TestCaseStepType.TestfallData, DataSetId = dataSetId, Label = beskrivning });
+    private void AddDataRowStep(int dataSetId, string beskrivning)
+    {
+        var sql = DataSvc.GenerateSql([dataSetId]);
+        _form.Steps.Add(new TestCaseStep {
+            Type      = TestCaseStepType.Sql,
+            Label     = $"Testdata #{dataSetId} {beskrivning}",
+            SqlScript = sql,
+        });
+        _expandedSteps.Add(_form.Steps.Count - 1);
+    }
+
+    private void AddBlankSqlStep()
+    {
+        _form.Steps.Add(new TestCaseStep { Type = TestCaseStepType.Sql, Label = "SQL" });
+        _expandedSteps.Add(_form.Steps.Count - 1);
+    }
+
+    private void AddBlankSwaggerStep()
+    {
+        _form.Steps.Add(new TestCaseStep { Type = TestCaseStepType.Swagger, Label = "API-anrop", HttpMethod = "POST" });
+        _expandedSteps.Add(_form.Steps.Count - 1);
+    }
 
     private void AddScriptStep(ToolboxScript script)
     {
