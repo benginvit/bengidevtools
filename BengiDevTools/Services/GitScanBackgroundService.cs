@@ -10,8 +10,8 @@ public class GitScanBackgroundService(AppScanService scan, IGitService git) : Ba
 
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
-        // Give the app a moment to finish startup
-        await Task.Delay(TimeSpan.FromSeconds(5), ct);
+        try { await Task.Delay(TimeSpan.FromSeconds(5), ct); }
+        catch (OperationCanceledException) { return; }
 
         var lastFetch = DateTime.MinValue;
 
