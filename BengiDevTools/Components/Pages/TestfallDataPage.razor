@@ -43,8 +43,8 @@
                       placeholder="Klistra in CSV här (semikolon-separerad, med rubrikrad)..."
                       @bind="_importText" @bind:event="oninput" spellcheck="false" />
             <div style="display:flex;gap:6px">
-                <button class="btn primary" @onclick="DoImport" disabled="@(string.IsNullOrWhiteSpace(_importText) || _fileLoading)">
-                    @(_fileLoading ? "Läser fil…" : "Importera")
+                <button class="btn primary" @onclick="DoImport" disabled="@(string.IsNullOrWhiteSpace(_importText) || _fileLoading || _importing)">
+                    @(_fileLoading ? "Läser fil…" : _importing ? "Importerar…" : "Importera")
                 </button>
                 <button class="btn" @onclick="CancelImport">Avbryt</button>
                 @if (!string.IsNullOrEmpty(_importMsg))
@@ -313,6 +313,7 @@
     private string       _importText = "";
     private string       _importMsg  = "";
     private bool         _fileLoading;
+    private bool         _importing;
     private bool         _confirmClear;
 
     private IEnumerable<TestDataRow> Filtered => Svc.Rows
@@ -400,12 +401,16 @@
         finally { _fileLoading = false; }
     }
 
-    private void DoImport()
+    private async Task DoImport()
     {
+        _importing = true;
+        StateHasChanged();
+        await Task.Yield();
         var imported = Svc.ImportCsv(_importText);
         foreach (var r in imported) Svc.Add(r);
         _importMsg  = $"Importerade {imported.Count} rader.";
         _importText = "";
+        _importing  = false;
     }
 
     private string PreviewSql(TestDataRow row) => Svc.GenerateSql([row.DataSetId]);
