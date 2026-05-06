@@ -563,6 +563,7 @@ body {
 .action-type-badge.data    { background: #2a1f3f; color: #b09ef5; }
 .action-type-badge.sleep   { background: #2a2a1f; color: #c8b86a; }
 .action-type-badge.foreach { background: #0d2a2a; color: #5cc9c9; }
+.action-type-badge.poll   { background: #2a1a0d; color: #e09050; }
 
 .step-expand-body {
   padding: 8px 8px 6px;

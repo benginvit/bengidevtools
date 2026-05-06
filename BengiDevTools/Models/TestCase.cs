@@ -1,6 +1,6 @@
 namespace BengiDevTools.Models;
 
-public enum TestCaseStepType { TestfallData, Sql, Swagger, Sleep, SqlForeach }
+public enum TestCaseStepType { TestfallData, Sql, Swagger, Sleep, SqlForeach, SqlPoll }
 
 public class TestCaseStep
 {
@@ -13,7 +13,11 @@ public class TestCaseStep
     public string           Body                  { get; set; } = "";
     public string           ContentType           { get; set; } = "application/json";
     public bool             UseDefaultCredentials { get; set; } = false;
-    public int              SleepSeconds { get; set; } = 2;
+    public int              SleepSeconds         { get; set; } = 2;
+    public string           PollCriteria         { get; set; } = "RowCountGte";
+    public string           PollCriteriaColumn   { get; set; } = "";
+    public string           PollCriteriaValue    { get; set; } = "1";
+    public int              PollTimeoutSeconds   { get; set; } = 30;
 }
 
 public class TestCase

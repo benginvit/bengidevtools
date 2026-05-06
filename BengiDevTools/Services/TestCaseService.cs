@@ -94,6 +94,12 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
                             await EnsureConnAsync();
                             await RunSqlForeachAsync(conn!, HttpFor(step), step, progress, ct);
                             break;
+
+                        case TestCaseStepType.SqlPoll:
+                            progress($"  [POLL] {step.Label}");
+                            await EnsureConnAsync();
+                            await RunSqlPollAsync(conn!, step, progress, ct);
+                            break;
                     }
                 }
             }
@@ -216,6 +222,51 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
         // Show first column that looks like an id for quick identification
         var id  = row.GetValueOrDefault("DataSetId") ?? row.GetValueOrDefault("Id") ?? row.GetValueOrDefault("FordranId");
         return id is not null ? $"{nr} (#{id})" : nr;
+    }
+
+    private static async Task RunSqlPollAsync(SqlConnection conn, TestCaseStep step, Action<string> progress, CancellationToken ct)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (sw.Elapsed.TotalSeconds < step.PollTimeoutSeconds)
+        {
+            ct.ThrowIfCancellationRequested();
+            var rows = new List<Dictionary<string, string>>();
+            try
+            {
+                using var cmd    = new SqlCommand(step.SqlScript, conn) { CommandTimeout = 10 };
+                using var reader = await cmd.ExecuteReaderAsync(ct);
+                while (await reader.ReadAsync(ct))
+                {
+                    var row = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    for (int i = 0; i < reader.FieldCount; i++)
+                        row[reader.GetName(i)] = reader.IsDBNull(i) ? "" : reader.GetValue(i)?.ToString() ?? "";
+                    rows.Add(row);
+                }
+            }
+            catch (Exception ex) { progress($"    FEL: {ex.Message}"); return; }
+
+            int    elapsed  = (int)sw.Elapsed.TotalSeconds;
+            bool   met      = step.PollCriteria switch
+            {
+                "RowCountGte"  => int.TryParse(step.PollCriteriaValue, out var n) && rows.Count >= n,
+                "RowCountEq"   => int.TryParse(step.PollCriteriaValue, out var n) && rows.Count == n,
+                "ColumnEquals" => rows.Any(r => r.TryGetValue(step.PollCriteriaColumn, out var v) &&
+                                               string.Equals(v, step.PollCriteriaValue, StringComparison.OrdinalIgnoreCase)),
+                _              => false,
+            };
+            var criteriaStr = step.PollCriteria switch
+            {
+                "RowCountGte"  => $"≥ {step.PollCriteriaValue} rader",
+                "RowCountEq"   => $"= {step.PollCriteriaValue} rader",
+                "ColumnEquals" => $"{step.PollCriteriaColumn} = {step.PollCriteriaValue}",
+                _              => "",
+            };
+            progress($"    [{elapsed}s] {rows.Count} rad{(rows.Count == 1 ? "" : "er")} — villkor ({criteriaStr}): {(met ? "✓" : "väntar...")}");
+
+            if (met) return;
+            await Task.Delay(1000, ct);
+        }
+        progress($"    Timeout efter {step.PollTimeoutSeconds}s — villkor ej uppfyllt ✗");
     }
 
     private static string Substitute(string template, Dictionary<string, string> row)
