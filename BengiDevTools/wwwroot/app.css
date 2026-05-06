@@ -282,6 +282,7 @@ body {
 .testfall-layout {
   display: grid;
   grid-template-columns: 220px 1fr 260px;
+  grid-template-areas: "list editor toolbox";
   gap: 10px;
   flex: 1;
   min-height: 0;
@@ -293,6 +294,7 @@ body {
 }
 
 .testfall-list {
+  grid-area: list;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -339,6 +341,7 @@ body {
 }
 
 .testfall-editor {
+  grid-area: editor;
   display: flex;
   flex-direction: column;
   background: var(--panel);
@@ -357,6 +360,7 @@ body {
 }
 
 .testfall-toolbox {
+  grid-area: toolbox;
   overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--border);
@@ -385,6 +389,7 @@ body {
   letter-spacing: .08em;
   color: var(--muted);
   padding: 4px 8px;
+  margin-top: 8px;
   position: sticky;
   top: 0;
   background: var(--panel);
