@@ -280,21 +280,21 @@ body {
 }
 
 .testfall-layout {
-  display: grid;
-  grid-template-columns: 220px 1fr 260px;
-  grid-template-areas: "list editor toolbox";
+  display: flex;
+  flex-direction: row;
   gap: 10px;
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
-.testfall-layout-editing {
-  grid-template-columns: 220px 1fr 320px;
+.testfall-layout-editing .testfall-toolbox {
+  width: 320px;
 }
 
 .testfall-list {
-  grid-area: list;
+  width: 220px;
+  flex-shrink: 0;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -341,7 +341,8 @@ body {
 }
 
 .testfall-editor {
-  grid-area: editor;
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   background: var(--panel);
@@ -360,7 +361,8 @@ body {
 }
 
 .testfall-toolbox {
-  grid-area: toolbox;
+  width: 260px;
+  flex-shrink: 0;
   overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--border);
