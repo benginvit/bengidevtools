@@ -58,28 +58,42 @@
             }
             @if (_toolboxScripts.Any())
             {
-                <div class="toolbox-section-header" style="margin-top:8px">SQL-skript</div>
-                @foreach (var s in _toolboxScripts)
+                <div class="toolbox-section-header" style="margin-top:8px;cursor:pointer"
+                     @onclick="() => _tbSqlExpanded = !_tbSqlExpanded">
+                    <span style="flex:1">SQL-skript</span>
+                    <span style="font-size:10px">@(_tbSqlExpanded ? "▾" : "▸")</span>
+                </div>
+                @if (_tbSqlExpanded)
                 {
-                    <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
-                         @onclick="() => { if (_editMode) AddScriptStep(s); }"
-                         title="@s.RelativePath">
-                        <span class="action-type-badge sql">SQL</span>
-                        <span class="toolbox-item-name">@s.Name</span>
-                    </div>
+                    @foreach (var s in _toolboxScripts)
+                    {
+                        <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
+                             @onclick="() => { if (_editMode) AddScriptStep(s); }"
+                             title="@s.RelativePath">
+                            <span class="action-type-badge sql">SQL</span>
+                            <span class="toolbox-item-name">@s.Name</span>
+                        </div>
+                    }
                 }
             }
             @if (_toolboxScenarios.Any())
             {
-                <div class="toolbox-section-header" style="margin-top:8px">API-anrop</div>
-                @foreach (var s in _toolboxScenarios)
+                <div class="toolbox-section-header" style="margin-top:8px;cursor:pointer"
+                     @onclick="() => _tbApiExpanded = !_tbApiExpanded">
+                    <span style="flex:1">API-anrop</span>
+                    <span style="font-size:10px">@(_tbApiExpanded ? "▾" : "▸")</span>
+                </div>
+                @if (_tbApiExpanded)
                 {
-                    <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
-                         @onclick="() => { if (_editMode) AddScenarioStep(s); }"
-                         title="@s.Url">
-                        <span class="action-type-badge swagger">@s.Method</span>
-                        <span class="toolbox-item-name">@s.Name</span>
-                    </div>
+                    @foreach (var s in _toolboxScenarios)
+                    {
+                        <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
+                             @onclick="() => { if (_editMode) AddScenarioStep(s); }"
+                             title="@s.Url">
+                            <span class="action-type-badge swagger">@s.Method</span>
+                            <span class="toolbox-item-name">@s.Name</span>
+                        </div>
+                    }
                 }
             }
             <div class="toolbox-section-header" style="margin-top:8px">Övrigt</div>
@@ -337,8 +351,10 @@
     private List<ToolboxScript> _toolboxScripts   = [];
     private List<Scenario>      _toolboxScenarios = [];
     private HashSet<int>        _expandedSteps    = [];
-    private bool                _tbDataExpanded   = true;
+    private bool                _tbDataExpanded   = false;
     private string              _tbDataFilter     = "";
+    private bool                _tbSqlExpanded    = false;
+    private bool                _tbApiExpanded    = false;
 
     private IEnumerable<TestCase> Filtered => Svc.Cases
         .Where(tc => string.IsNullOrEmpty(_filter)
