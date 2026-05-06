@@ -173,15 +173,15 @@
                                                 @onclick="() => ToggleExpand(idx)">@(expanded ? "▾" : "▸")</button>
                                     }
                                     <span class="action-type-badge @StepBadgeClass(step.Type)">@StepBadgeText(step.Type)</span>
-                                    <span style="flex:1;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-                                        @StepSummary(step)
-                                    </span>
+                                    <input class="input step-label-input" placeholder="Beskrivning..."
+                                           @bind="step.Label" @bind:event="oninput"
+                                           @onclick:stopPropagation />
                                     @if (step.Type == TestCaseStepType.Sleep)
                                     {
-                                        <input class="input" type="number" style="width:58px;text-align:center"
+                                        <input class="input" type="number" style="width:58px;text-align:center;flex-shrink:0"
                                                min="1" max="300"
                                                @bind="step.SleepSeconds" @bind:event="oninput" />
-                                        <span style="font-size:11px;color:var(--muted)">s</span>
+                                        <span style="font-size:11px;color:var(--muted);flex-shrink:0">s</span>
                                     }
                                     <button class="btn sm" @onclick="() => MoveStepUp(idx)"   disabled="@(idx == 0)">↑</button>
                                     <button class="btn sm" @onclick="() => MoveStepDown(idx)" disabled="@(idx == _form.Steps.Count - 1)">↓</button>
@@ -190,8 +190,6 @@
                                 @if (expanded)
                                 {
                                     <div class="step-expand-body">
-                                        <input class="input" style="font-size:11px" placeholder="Stegnamn..."
-                                               @bind="step.Label" @bind:event="oninput" />
                                         @if (step.Type == TestCaseStepType.Sql)
                                         {
                                             <textarea class="debug-sql-editor" style="height:300px;resize:vertical"

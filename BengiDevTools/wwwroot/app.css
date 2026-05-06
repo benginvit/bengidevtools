@@ -498,6 +498,17 @@ body {
 .add-step-chip:hover { background: var(--hover); border-color: var(--blue); }
 .add-step-chip .action-type-badge { font-size: 9px; }
 
+.step-label-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  padding: 2px 6px;
+  background: transparent;
+  border-color: transparent;
+}
+.step-label-input:hover  { border-color: var(--border); }
+.step-label-input:focus  { background: var(--bg); border-color: var(--blue); }
+
 .form-row {
   display: flex;
   gap: 10px;
