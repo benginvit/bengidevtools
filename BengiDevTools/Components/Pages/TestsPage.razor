@@ -23,7 +23,7 @@
                 disabled="@(_checked.Count == 0)" title="Ladda ner testfall som JSON-fil">
             ↓ JSON (@_checked.Count)
         </button>
-        <button class="btn" @onclick="() => { _importMode = !_importMode; _importText = \"\"; _importMsg = \"\"; }">
+        <button class="btn" @onclick="ToggleImport">
             ↑ Importera
         </button>
         <button class="btn" @onclick="CheckAll">Välj alla</button>
@@ -42,7 +42,7 @@
                       @bind="_importText" @bind:event="oninput" />
             <div style="display:flex;gap:6px;margin-top:6px;align-items:center">
                 <button class="btn sm primary" @onclick="ImportJson" disabled="@string.IsNullOrWhiteSpace(_importText)">Importera</button>
-                <button class="btn sm" @onclick="() => { _importMode = false; _importText = \"\"; _importMsg = \"\"; }">Avbryt</button>
+                <button class="btn sm" @onclick="CloseImport">Avbryt</button>
                 @if (!string.IsNullOrEmpty(_importMsg))
                 {
                     <span style="font-size:11px;color:var(--muted)">@_importMsg</span>
@@ -885,6 +885,9 @@
         await JS.InvokeVoidAsync("downloadFile", filename, json);
         Log($"──── Exporterade {cases.Count} testfall som {filename} ────");
     }
+
+    private void ToggleImport() { _importMode = !_importMode; _importText = ""; _importMsg = ""; }
+    private void CloseImport()  { _importMode = false;       _importText = ""; _importMsg = ""; }
 
     private void ImportJson()
     {
