@@ -1,3 +1,4 @@
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using BengiDevTools.Models;
@@ -194,7 +195,7 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
             {
                 using var request = new HttpRequestMessage(new HttpMethod(step.HttpMethod), url);
                 if (!string.IsNullOrEmpty(body))
-                    request.Content = new StringContent(body, Encoding.UTF8, step.ContentType);
+                    request.Content = BuildContent(body, step.ContentType);
                 using var response = await http.SendAsync(request, ct);
                 var responseBody = await response.Content.ReadAsStringAsync(ct);
                 if (response.IsSuccessStatusCode)
@@ -269,6 +270,13 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
         progress($"    Timeout efter {step.PollTimeoutSeconds}s — villkor ej uppfyllt ✗");
     }
 
+    private static StringContent BuildContent(string body, string contentType)
+    {
+        var content = new StringContent(body, Encoding.UTF8);
+        content.Headers.ContentType = MediaTypeHeaderValue.Parse(contentType);
+        return content;
+    }
+
     private static string Substitute(string template, Dictionary<string, string> row)
     {
         var result = template;
@@ -283,7 +291,7 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
         {
             using var request = new HttpRequestMessage(new HttpMethod(step.HttpMethod), step.Url);
             if (!string.IsNullOrEmpty(step.Body))
-                request.Content = new StringContent(step.Body, Encoding.UTF8, step.ContentType);
+                request.Content = BuildContent(step.Body, step.ContentType);
             using var response = await http.SendAsync(request, ct);
             var body = await response.Content.ReadAsStringAsync(ct);
             progress($"    {(int)response.StatusCode} {response.ReasonPhrase}");
