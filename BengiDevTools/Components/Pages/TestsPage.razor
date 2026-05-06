@@ -102,9 +102,12 @@
                 {
                     <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
                          @onclick="() => { if (_editMode) AddScenarioStep(s); }"
-                         title="@s.Url">
-                        <span class="action-type-badge swagger">@s.Method</span>
-                        <span class="toolbox-item-name">@s.Name</span>
+                         title="@s.Data.Url">
+                        <span class="action-type-badge swagger">@s.Data.Method</span>
+                        <span class="toolbox-item-name">@s.Data.Name</span>
+                        <button class="toolbox-delete-btn" title="Ta bort mall"
+                                @onclick:stopPropagation
+                                @onclick="() => DeleteScenario(s)">×</button>
                     </div>
                 }
             }
@@ -363,6 +366,7 @@
 
 @code {
     private record ToolboxScript(string Name, string RelativePath, string Path);
+    private record ToolboxScenario(Scenario Data, string FilePath);
 
     private string       _filter       = "";
     private HashSet<int> _checked      = [];
@@ -375,8 +379,8 @@
     private int          _sleepSeconds = 2;
     private readonly CancellationTokenSource _cts = new();
 
-    private List<ToolboxScript> _toolboxScripts   = [];
-    private List<Scenario>      _toolboxScenarios = [];
+    private List<ToolboxScript>   _toolboxScripts   = [];
+    private List<ToolboxScenario> _toolboxScenarios = [];
     private HashSet<int>        _expandedSteps    = [];
     private bool                _tbDataExpanded   = false;
     private string              _tbDataFilter     = "";
@@ -410,15 +414,23 @@
                 Path:         f))
             .ToList();
 
-        var scenariosPath = Path.Combine(root, "scenarios.json");
-        if (File.Exists(scenariosPath))
+        var scenariosDir = Path.Combine(root, "scenarios");
+        if (Directory.Exists(scenariosDir))
         {
-            try
-            {
-                _toolboxScenarios = System.Text.Json.JsonSerializer.Deserialize<List<Scenario>>(
-                    File.ReadAllText(scenariosPath)) ?? [];
-            }
-            catch { _toolboxScenarios = []; }
+            _toolboxScenarios = Directory.GetFiles(scenariosDir, "*.json")
+                .OrderBy(f => f)
+                .Select(f =>
+                {
+                    try
+                    {
+                        var s = System.Text.Json.JsonSerializer.Deserialize<Scenario>(File.ReadAllText(f));
+                        return s is null ? null : new ToolboxScenario(s, f);
+                    }
+                    catch { return null; }
+                })
+                .Where(x => x is not null)
+                .Cast<ToolboxScenario>()
+                .ToList();
         }
     }
 
@@ -479,8 +491,9 @@
         _expandedSteps.Add(_form.Steps.Count - 1);
     }
 
-    private void AddScenarioStep(Scenario s)
+    private void AddScenarioStep(ToolboxScenario ts)
     {
+        var s = ts.Data;
         _form.Steps.Add(new TestCaseStep {
             Type                  = TestCaseStepType.Swagger,
             Label                 = s.Name,
@@ -495,21 +508,38 @@
 
     private void SaveStepAsTemplate(TestCaseStep step)
     {
+        var name = string.IsNullOrWhiteSpace(step.Label) ? "API-anrop" : step.Label;
         var scenario = new Scenario
         {
-            Name                  = string.IsNullOrWhiteSpace(step.Label) ? "API-anrop" : step.Label,
+            Name                  = name,
             Method                = step.HttpMethod,
             Url                   = step.Url,
             Body                  = step.Body,
             ContentType           = step.ContentType,
             UseDefaultCredentials = step.UseDefaultCredentials,
         };
-        _toolboxScenarios.Add(scenario);
-        var path = Path.Combine(Settings.Settings.DebugScriptsPath, "scenarios.json");
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize(
-            _toolboxScenarios, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        var dir  = Path.Combine(Settings.Settings.DebugScriptsPath, "scenarios");
+        var file = Path.Combine(dir, SanitizeFileName(name) + ".json");
+        Directory.CreateDirectory(dir);
+        File.WriteAllText(file, System.Text.Json.JsonSerializer.Serialize(
+            scenario, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        var existing = _toolboxScenarios.FindIndex(x => x.FilePath == file);
+        var entry    = new ToolboxScenario(scenario, file);
+        if (existing >= 0) _toolboxScenarios[existing] = entry;
+        else               _toolboxScenarios.Add(entry);
         _tbApiExpanded = true;
+    }
+
+    private void DeleteScenario(ToolboxScenario ts)
+    {
+        if (File.Exists(ts.FilePath)) File.Delete(ts.FilePath);
+        _toolboxScenarios.Remove(ts);
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        return string.Concat(name.Select(c => invalid.Contains(c) ? '_' : c)).Trim('_');
     }
 
     private void AddSqlForeachStep()
