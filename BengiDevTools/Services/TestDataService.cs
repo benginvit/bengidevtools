@@ -39,7 +39,8 @@ public class TestDataService(ISettingsService settings) : ITestDataService
         if (rows.Count == 0) return "";
 
         var sb = new StringBuilder();
-        sb.AppendLine("DECLARE @TestDataMPM TABLE (");
+        sb.AppendLine("IF OBJECT_ID('tempdb..#TestDataMPM') IS NOT NULL DROP TABLE #TestDataMPM");
+        sb.AppendLine("CREATE TABLE #TestDataMPM (");
         sb.AppendLine("    DataSetId INT,");
         sb.AppendLine("    Databeskrivning NVARCHAR(255),");
         sb.AppendLine("    InbetalningsspecifikationReferenceId UNIQUEIDENTIFIER,");
@@ -77,7 +78,7 @@ public class TestDataService(ISettingsService settings) : ITestDataService
 
         foreach (var r in rows)
         {
-            sb.Append("INSERT INTO @TestDataMPM VALUES (");
+            sb.Append("INSERT INTO #TestDataMPM VALUES (");
             sb.Append($"{r.DataSetId}, ");
             sb.Append($"{Str(r.Databeskrivning)}, ");
             sb.Append("NEWID(), NEWID(), ");
