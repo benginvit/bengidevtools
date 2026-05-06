@@ -687,14 +687,20 @@
             Tag         = _selected.Tag,
             Steps       = _selected.Steps.Select(s => new TestCaseStep
             {
-                Type         = s.Type,
-                Label        = s.Label,
-                DataSetId    = s.DataSetId,
-                SqlScript    = s.SqlScript,
-                HttpMethod   = s.HttpMethod,
-                Url          = s.Url,
-                Body         = s.Body,
-                SleepSeconds = s.SleepSeconds,
+                Type                  = s.Type,
+                Label                 = s.Label,
+                DataSetId             = s.DataSetId,
+                SqlScript             = s.SqlScript,
+                HttpMethod            = s.HttpMethod,
+                Url                   = s.Url,
+                Body                  = s.Body,
+                ContentType           = s.ContentType,
+                UseDefaultCredentials = s.UseDefaultCredentials,
+                SleepSeconds          = s.SleepSeconds,
+                PollCriteria          = s.PollCriteria,
+                PollCriteriaColumn    = s.PollCriteriaColumn,
+                PollCriteriaValue     = s.PollCriteriaValue,
+                PollTimeoutSeconds    = s.PollTimeoutSeconds,
             }).ToList(),
         };
         _isNew    = false;

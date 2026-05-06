@@ -12,7 +12,7 @@ public class TestCaseStep
     public string           Url                   { get; set; } = "";
     public string           Body                  { get; set; } = "";
     public string           ContentType           { get; set; } = "application/json";
-    public bool             UseDefaultCredentials { get; set; } = false;
+    public bool             UseDefaultCredentials { get; set; } = true;
     public int              SleepSeconds         { get; set; } = 2;
     public string           PollCriteria         { get; set; } = "RowCountGte";
     public string           PollCriteriaColumn   { get; set; } = "";
