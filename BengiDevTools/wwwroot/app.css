@@ -438,9 +438,12 @@ body {
   font-size: 11px;
   min-width: 0;
 }
-.toolbox-item:hover          { background: var(--hover); }
-.toolbox-item-disabled       { opacity: .4; cursor: default; }
-.toolbox-item-disabled:hover { background: none; }
+.toolbox-item:hover            { background: var(--hover); }
+.toolbox-item-disabled         { opacity: .4; cursor: default; }
+.toolbox-item-disabled:hover   { background: none; }
+.toolbox-item-checked          { background: color-mix(in srgb, var(--blue) 12%, transparent); }
+.toolbox-item-checked:hover    { background: color-mix(in srgb, var(--blue) 20%, transparent); }
+.toolbox-item-check            { width: 12px; font-size: 10px; color: var(--blue); flex-shrink: 0; }
 
 .toolbox-item-name {
   overflow: hidden;

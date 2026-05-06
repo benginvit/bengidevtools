@@ -42,14 +42,25 @@
                         <input class="input" style="font-size:11px" placeholder="Sök id eller namn..."
                                @bind="_tbDataFilter" @bind:event="oninput" />
                     </div>
+                    @if (_tbDataChecked.Count > 0 && _editMode)
+                    {
+                        <div style="padding:2px 6px 4px">
+                            <button class="btn primary sm" style="width:100%;font-size:11px"
+                                    @onclick="AddCheckedDataRowsStep">
+                                Lägg till (@_tbDataChecked.Count) som ett steg
+                            </button>
+                        </div>
+                    }
                     @foreach (var row in DataSvc.Rows
                         .Where(r => string.IsNullOrEmpty(_tbDataFilter)
                             || r.DataSetId.ToString().Contains(_tbDataFilter)
                             || r.Databeskrivning.Contains(_tbDataFilter, StringComparison.OrdinalIgnoreCase))
                         .OrderBy(r => r.DataSetId))
                     {
-                        <div class="toolbox-item @(_editMode ? "" : "toolbox-item-disabled")"
-                             @onclick="() => { if (_editMode) AddDataRowStep(row.DataSetId, row.Databeskrivning); }">
+                        var isChecked = _tbDataChecked.Contains(row.DataSetId);
+                        <div class="toolbox-item @(_editMode ? (isChecked ? "toolbox-item-checked" : "") : "toolbox-item-disabled")"
+                             @onclick="() => { if (_editMode) ToggleTbDataItem(row.DataSetId); }">
+                            <span class="toolbox-item-check">@(isChecked ? "✓" : "")</span>
                             <span class="action-type-badge data">DATA</span>
                             <span class="toolbox-item-name">#@row.DataSetId @row.Databeskrivning</span>
                         </div>
@@ -351,6 +362,7 @@
     private HashSet<int>        _expandedSteps    = [];
     private bool                _tbDataExpanded   = false;
     private string              _tbDataFilter     = "";
+    private HashSet<int>        _tbDataChecked    = [];
     private bool                _tbSqlExpanded    = false;
     private bool                _tbApiExpanded    = false;
 
@@ -406,6 +418,28 @@
             SqlScript = sql,
         });
         _expandedSteps.Add(_form.Steps.Count - 1);
+    }
+
+    private void ToggleTbDataItem(int dataSetId)
+    {
+        if (!_tbDataChecked.Remove(dataSetId))
+            _tbDataChecked.Add(dataSetId);
+    }
+
+    private void AddCheckedDataRowsStep()
+    {
+        var ids  = _tbDataChecked.OrderBy(x => x).ToList();
+        var rows = DataSvc.Rows.Where(r => ids.Contains(r.DataSetId)).OrderBy(r => r.DataSetId).ToList();
+        var label = rows.Count == 1
+            ? $"Testdata #{rows[0].DataSetId} {rows[0].Databeskrivning}"
+            : $"Testdata ({rows.Count}): " + string.Join(", ", rows.Select(r => $"#{r.DataSetId}"));
+        _form.Steps.Add(new TestCaseStep {
+            Type      = TestCaseStepType.Sql,
+            Label     = label,
+            SqlScript = DataSvc.GenerateSql(ids),
+        });
+        _expandedSteps.Add(_form.Steps.Count - 1);
+        _tbDataChecked.Clear();
     }
 
     private void AddBlankSqlStep()
