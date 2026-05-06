@@ -48,6 +48,9 @@ public class TestDataService(ISettingsService settings) : ITestDataService
         sb.AppendLine("    PersonId NVARCHAR(50),");
         sb.AppendLine("    InbetalningBetalreferens NVARCHAR(50),");
         sb.AppendLine("    FordranBetalreferens NVARCHAR(50),");
+        sb.AppendLine("    POITyp NVARCHAR(50),");
+        sb.AppendLine("    POIPersOrgNr NVARCHAR(20),");
+        sb.AppendLine("    POIBank NVARCHAR(100),");
         sb.AppendLine("    SubjektPersonNrOrgNr NVARCHAR(20),");
         sb.AppendLine("    SubjektNamn NVARCHAR(255),");
         sb.AppendLine("    SubjektAdress NVARCHAR(255),");
@@ -85,6 +88,9 @@ public class TestDataService(ISettingsService settings) : ITestDataService
             sb.Append($"{Str(r.PersonId)}, ");
             sb.Append($"{Str(r.InbetalningBetalreferens)}, ");
             sb.Append($"{Str(r.FordranBetalreferens)}, ");
+            sb.Append($"{Str(r.POITyp)}, ");
+            sb.Append($"{Str(r.POIPersOrgNr)}, ");
+            sb.Append($"{Str(r.POIBank)}, ");
             sb.Append($"{Str(r.SubjektPersonNrOrgNr)}, ");
             sb.Append($"{Str(r.SubjektNamn)}, ");
             sb.Append($"{Str(r.SubjektAdress)}, ");
@@ -127,7 +133,7 @@ public class TestDataService(ISettingsService settings) : ITestDataService
 
     private static readonly string[] CsvHeaders =
     [
-        "DataSetId","Databeskrivning","PersonId","SubjektPersonNrOrgNr","SubjektNamn",
+        "DataSetId","Databeskrivning","PersonId","POITyp","POIPersOrgNr","POIBank","SubjektPersonNrOrgNr","SubjektNamn",
         "SubjektAdress","SubjektCoAdress","SubjektPostnummer","SubjektPostort","SubjektLand",
         "SubjektUrsprung","Subjekttyp","SubjektMetadata",
         "InbetalarePersonOrgNr","InbetalareNamn","InbetalareAdress1","InbetalareAdress2",
@@ -192,6 +198,9 @@ public class TestDataService(ISettingsService settings) : ITestDataService
                 DataSetId                         = int.TryParse(Get("DataSetId"), out var id) ? id : 0,
                 Databeskrivning                   = Get("Databeskrivning"),
                 PersonId                          = Get("PersonId"),
+                POITyp                            = Get("POITyp"),
+                POIPersOrgNr                      = Get("POIPersOrgNr"),
+                POIBank                           = Get("POIBank"),
                 SubjektPersonNrOrgNr              = Get("SubjektPersonNrOrgNr"),
                 SubjektNamn                       = Get("SubjektNamn"),
                 SubjektAdress                     = Get("SubjektAdress"),
@@ -230,6 +239,7 @@ public class TestDataService(ISettingsService settings) : ITestDataService
     private static IEnumerable<string> GetValues(TestDataRow r) =>
     [
         r.DataSetId.ToString(), r.Databeskrivning, r.PersonId,
+        r.POITyp, r.POIPersOrgNr, r.POIBank,
         r.SubjektPersonNrOrgNr, r.SubjektNamn, r.SubjektAdress, r.SubjektCoAdress,
         r.SubjektPostnummer, r.SubjektPostort, r.SubjektLand, r.SubjektUrsprung,
         r.Subjekttyp, r.SubjektMetadata,

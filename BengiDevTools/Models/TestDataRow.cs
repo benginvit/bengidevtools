@@ -18,6 +18,11 @@ public class TestDataRow
     public string Subjekttyp                        { get; set; } = "";
     public string SubjektMetadata                   { get; set; } = "";
 
+    // POI
+    public string POITyp                            { get; set; } = "";
+    public string POIPersOrgNr                      { get; set; } = "";
+    public string POIBank                           { get; set; } = "";
+
     // Inbetalare
     public string InbetalarePersonOrgNr             { get; set; } = "";
     public string InbetalareNamn                    { get; set; } = "";

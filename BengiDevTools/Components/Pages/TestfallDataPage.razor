@@ -153,6 +153,20 @@
                         <div class="form-group" style="width:80px"><label class="form-label">Land</label><input class="input" @bind="_form.InbetalareLand" @bind:event="oninput" /></div>
                     </div>
 
+                    <div class="section-header">POI</div>
+                    <div class="form-row">
+                        <div class="form-group" style="flex:1">
+                            <label class="form-label">POITyp</label>
+                            <select class="input" @bind="_form.POITyp">
+                                <option value="">NULL – Ingen POI</option>
+                                <option value="@Person">@Person – Fysisk</option>
+                                <option value="@Foretag">@Foretag – Juridisk</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex:1"><label class="form-label">POIPersOrgNr</label><input class="input" @bind="_form.POIPersOrgNr" @bind:event="oninput" /></div>
+                        <div class="form-group" style="flex:1"><label class="form-label">POIBank</label><input class="input" @bind="_form.POIBank" @bind:event="oninput" /></div>
+                    </div>
+
                     <div class="section-header">Inbetalning / Fordran</div>
                     <div class="form-row">
                         <div class="form-group" style="flex:1"><label class="form-label">Inbetalning Betalref</label><input class="input" @bind="_form.InbetalningBetalreferens" @bind:event="oninput" /></div>
