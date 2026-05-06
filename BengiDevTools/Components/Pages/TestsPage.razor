@@ -28,7 +28,7 @@
 
     <div class="testfall-layout @(_editMode ? "testfall-layout-editing" : "")">
 
-        <!-- ── Col 1: Toolbox (always visible) ── -->
+        <!-- ── Col 3 (right): Toolbox ── -->
         <div class="testfall-toolbox">
             @if (DataSvc.Rows.Count > 0)
             {
@@ -179,7 +179,7 @@
             }
         </div>
 
-        <!-- ── Col 2: Test case list ── -->
+        <!-- ── Col 1 (left): Test case list ── -->
         <div class="testfall-list">
             @foreach (var tc in Filtered)
             {
@@ -206,7 +206,7 @@
             }
         </div>
 
-        <!-- ── Col 3: Editor / view ── -->
+        <!-- ── Col 2 (middle): Editor / view ── -->
         <div class="testfall-editor">
             @if (_editMode)
             {

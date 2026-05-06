@@ -281,7 +281,7 @@ body {
 
 .testfall-layout {
   display: grid;
-  grid-template-columns: 210px 280px 1fr;
+  grid-template-columns: 220px 1fr 260px;
   gap: 10px;
   flex: 1;
   min-height: 0;
@@ -289,8 +289,13 @@ body {
 }
 
 .testfall-layout-editing {
-  grid-template-columns: 320px 240px 1fr;
+  grid-template-columns: 220px 1fr 320px;
 }
+
+/* source order: toolbox, list, editor → visual order: list, editor, toolbox */
+.testfall-toolbox { grid-column: 3; }
+.testfall-list    { grid-column: 1; }
+.testfall-editor  { grid-column: 2; }
 
 .testfall-list {
   background: var(--panel);
