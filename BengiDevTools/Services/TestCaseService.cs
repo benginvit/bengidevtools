@@ -325,29 +325,51 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
         }
     }
 
-    public async Task<(List<string> Columns, List<Dictionary<string, string>> Rows, string? Error)> QueryAsync(
+    public async Task<(List<(List<string> Cols, List<Dictionary<string, string>> Rows)> Results, string? Error)> QueryAsync(
         string sql, string connectionString, CancellationToken ct = default)
     {
-        var cols = new List<string>();
-        var rows = new List<Dictionary<string, string>>();
+        var results = new List<(List<string>, List<Dictionary<string, string>>)>();
         try
         {
+            // Split on GO, keep only batches that contain SELECT
+            var batches = sql
+                .Split(["\nGO", "\r\nGO"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(b => !string.IsNullOrWhiteSpace(b))
+                .ToList();
+            if (batches.Count == 0) batches = [sql];
+
+            // If there are no GO separators the whole SQL is one batch
+            var selectBatches = batches
+                .Where(b => b.Contains("SELECT", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (selectBatches.Count == 0) selectBatches = batches; // fallback: run all
+
             using var conn = new SqlConnection(connectionString);
             await conn.OpenAsync(ct);
-            using var cmd    = new SqlCommand(sql, conn) { CommandTimeout = 15 };
-            using var reader = await cmd.ExecuteReaderAsync(ct);
-            cols = Enumerable.Range(0, reader.FieldCount).Select(reader.GetName).ToList();
-            while (await reader.ReadAsync(ct) && rows.Count < 500)
+
+            foreach (var batch in selectBatches)
             {
-                var row = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                for (int i = 0; i < reader.FieldCount; i++)
-                    row[reader.GetName(i)] = reader.IsDBNull(i) ? "NULL" : reader.GetValue(i)?.ToString() ?? "";
-                rows.Add(row);
+                using var cmd    = new SqlCommand(batch, conn) { CommandTimeout = 15 };
+                using var reader = await cmd.ExecuteReaderAsync(ct);
+                do
+                {
+                    if (!reader.HasRows) continue;
+                    var cols = Enumerable.Range(0, reader.FieldCount).Select(reader.GetName).ToList();
+                    var rows = new List<Dictionary<string, string>>();
+                    while (await reader.ReadAsync(ct) && rows.Count < 500)
+                    {
+                        var row = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                        for (int i = 0; i < reader.FieldCount; i++)
+                            row[reader.GetName(i)] = reader.IsDBNull(i) ? "NULL" : reader.GetValue(i)?.ToString() ?? "";
+                        rows.Add(row);
+                    }
+                    results.Add((cols, rows));
+                } while (await reader.NextResultAsync(ct));
             }
-            return (cols, rows, null);
+            return (results, null);
         }
         catch (OperationCanceledException) { throw; }
-        catch (Exception ex) { return (cols, rows, ex.Message); }
+        catch (Exception ex) { return (results, ex.Message); }
     }
 
     public string ExportSql(IEnumerable<TestCase> cases)

@@ -469,7 +469,8 @@
                 {
                     <span style="font-size:10px;color:var(--muted)">
                         @_monitorLastRun.Value.ToString("HH:mm:ss")
-                        @if (_monitorRows.Count > 0) { <span> · @_monitorRows.Count rad@(_monitorRows.Count == 1 ? "" : "er")</span> }
+                        @{ var totalRows = _monitorResults.Sum(r => r.Rows.Count); }
+                        @if (totalRows > 0) { <span> · @totalRows rad@(totalRows == 1 ? "" : "er")@(_monitorResults.Count > 1 ? $" ({_monitorResults.Count} sets)" : "")</span> }
                     </span>
                 }
                 <span style="flex:1"></span>
@@ -486,10 +487,10 @@
                     {
                         <div style="color:var(--red);font-size:11px;padding:8px 10px">FEL: @_monitorError</div>
                     }
-                    else if (_monitorColumns.Count > 0)
+                    else if (_monitorResults.Count > 0)
                     {
                         <div class="sql-monitor-cols">
-                            @foreach (var col in _monitorColumns)
+                            @foreach (var col in MonitorAllCols)
                             {
                                 var hidden = _monitorHiddenCols.Contains(col);
                                 <button class="col-pill @(hidden ? "col-pill-hidden" : "")"
@@ -497,28 +498,35 @@
                             }
                         </div>
                         <div class="sql-monitor-table-wrap">
-                            <table class="monitor-table">
-                                <thead>
-                                    <tr>
-                                        @foreach (var col in _monitorColumns.Where(c => !_monitorHiddenCols.Contains(c)))
-                                        {
-                                            <th>@col</th>
-                                        }
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var row in _monitorRows)
-                                    {
-                                        var rowClass = MonitorRowClass(row);
-                                        <tr class="@rowClass">
-                                            @foreach (var col in _monitorColumns.Where(c => !_monitorHiddenCols.Contains(c)))
-                                            {
-                                                <td title="@row.GetValueOrDefault(col, "")">@row.GetValueOrDefault(col, "")</td>
-                                            }
+                            @for (int si = 0; si < _monitorResults.Count; si++)
+                            {
+                                var rs      = _monitorResults[si];
+                                var visCols = rs.Cols.Where(c => !_monitorHiddenCols.Contains(c)).ToList();
+                                @if (_monitorResults.Count > 1)
+                                {
+                                    <div style="font-size:10px;color:var(--muted);padding:3px 8px;background:var(--surface);border-bottom:1px solid var(--border)">
+                                        Resultat @(si + 1) — @rs.Rows.Count rad@(rs.Rows.Count == 1 ? "" : "er")
+                                    </div>
+                                }
+                                <table class="monitor-table">
+                                    <thead>
+                                        <tr>
+                                            @foreach (var col in visCols) { <th>@col</th> }
                                         </tr>
-                                    }
-                                </tbody>
-                            </table>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var row in rs.Rows)
+                                        {
+                                            <tr class="@MonitorRowClass(row)">
+                                                @foreach (var col in visCols)
+                                                {
+                                                    <td title="@row.GetValueOrDefault(col, "")">@row.GetValueOrDefault(col, "")</td>
+                                                }
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
                         </div>
                     }
                     else if (!_monitorRunning)
@@ -593,9 +601,9 @@
     private bool                     _monitorPolling     = false;
     private bool                     _monitorRunning     = false;
     private CancellationTokenSource? _monitorCts;
-    private List<string>             _monitorColumns     = [];
-    private List<Dictionary<string,string>> _monitorRows = [];
-    private HashSet<string>          _monitorHiddenCols  = [];
+    private List<(List<string> Cols, List<Dictionary<string,string>> Rows)> _monitorResults   = [];
+    private HashSet<string>                                                _monitorHiddenCols = [];
+    private IEnumerable<string> MonitorAllCols => _monitorResults.SelectMany(r => r.Cols).Distinct(StringComparer.OrdinalIgnoreCase);
     private string?                  _monitorError;
     private DateTime?                _monitorLastRun;
 
@@ -1070,12 +1078,11 @@
         await InvokeAsync(StateHasChanged);
         try
         {
-            var (cols, rows, err) = await Svc.QueryAsync(_monitorSql, Settings.Settings.SqlConnectionString, _cts.Token);
-            _monitorColumns = cols;
-            _monitorRows    = rows;
+            var (results, err) = await Svc.QueryAsync(_monitorSql, Settings.Settings.SqlConnectionString, _cts.Token);
+            _monitorResults = results;
             _monitorError   = err;
             _monitorLastRun = DateTime.Now;
-            _monitorHiddenCols.IntersectWith(cols.ToHashSet(StringComparer.OrdinalIgnoreCase));
+            _monitorHiddenCols.IntersectWith(MonitorAllCols.ToHashSet(StringComparer.OrdinalIgnoreCase));
         }
         catch (OperationCanceledException) { }
         _monitorRunning = false;
@@ -1102,12 +1109,11 @@
                 await InvokeAsync(StateHasChanged);
                 try
                 {
-                    var (cols, rows, err) = await Svc.QueryAsync(_monitorSql, Settings.Settings.SqlConnectionString, ct);
-                    _monitorColumns = cols;
-                    _monitorRows    = rows;
+                    var (results, err) = await Svc.QueryAsync(_monitorSql, Settings.Settings.SqlConnectionString, ct);
+                    _monitorResults = results;
                     _monitorError   = err;
                     _monitorLastRun = DateTime.Now;
-                    _monitorHiddenCols.IntersectWith(cols.ToHashSet(StringComparer.OrdinalIgnoreCase));
+                    _monitorHiddenCols.IntersectWith(MonitorAllCols.ToHashSet(StringComparer.OrdinalIgnoreCase));
                 }
                 catch (OperationCanceledException) { break; }
                 catch (Exception ex)               { _monitorError = ex.Message; }
