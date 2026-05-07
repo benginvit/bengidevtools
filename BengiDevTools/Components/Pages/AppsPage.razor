@@ -956,20 +956,20 @@
 
     private static string GetBuildStale(string repoDir)
     {
-        var binRoot     = Path.Combine(repoDir, "bin");
         var newestBuild = DateTime.MinValue;
-        if (Directory.Exists(binRoot))
+        try
         {
-            try
+            foreach (var f in Directory.GetFiles(repoDir, "*.dll", SearchOption.AllDirectories))
             {
-                foreach (var f in Directory.GetFiles(binRoot, "*.dll", SearchOption.AllDirectories))
-                {
-                    var t = File.GetLastWriteTimeUtc(f);
-                    if (t > newestBuild) newestBuild = t;
-                }
+                var rel   = Path.GetRelativePath(repoDir, f);
+                var parts = rel.Split(Path.DirectorySeparatorChar);
+                if (!parts.Any(p => p.Equals("bin", StringComparison.OrdinalIgnoreCase))) continue;
+                var t = File.GetLastWriteTimeUtc(f);
+                if (t > newestBuild) newestBuild = t;
             }
-            catch { }
         }
+        catch { }
+
         if (newestBuild == DateTime.MinValue) return "no-build";
 
         var newestSource = DateTime.MinValue;
