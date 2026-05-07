@@ -12,6 +12,7 @@ window.makeDraggable = function (modalId) {
     if (!handle) return;
     handle.addEventListener('mousedown', function (e) {
         if (e.button !== 0) return;
+        if (e.target.closest('button, select, input, a, textarea')) return;
         const rect = modal.getBoundingClientRect();
         modal.style.transform = 'none';
         modal.style.left = rect.left + 'px';
