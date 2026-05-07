@@ -372,13 +372,23 @@
                     {
                         @for (int i = 0; i < _selected.Steps.Count; i++)
                         {
-                            var step = _selected.Steps[i];
-                            var num  = i + 1;
-                            <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border)">
+                            var step     = _selected.Steps[i];
+                            var num      = i + 1;
+                            var isActive = _activeCase == _selected && _activeStepIdx == i;
+                            <div style="display:flex;align-items:center;gap:6px;padding:5px 0;
+                                        border-bottom:1px solid var(--border);
+                                        @(isActive ? "background:color-mix(in srgb,var(--blue) 10%,transparent);border-left:2px solid var(--blue);padding-left:4px;margin-left:-2px;" : "border-left:2px solid transparent;padding-left:4px;margin-left:-2px;")">
                                 <button class="breakpoint-btn @(step.Breakpoint ? "active" : "")"
                                         title="@(step.Breakpoint ? "Ta bort breakpoint" : "Lägg till breakpoint")"
                                         @onclick="() => step.Breakpoint = !step.Breakpoint">●</button>
-                                <span style="color:var(--muted);font-size:10px;min-width:18px;text-align:right">@num.</span>
+                                @if (isActive)
+                                {
+                                    <span style="color:var(--blue);font-size:12px;flex-shrink:0;line-height:1">▶</span>
+                                }
+                                else
+                                {
+                                    <span style="color:var(--muted);font-size:10px;min-width:18px;text-align:right;flex-shrink:0">@num.</span>
+                                }
                                 <span class="action-type-badge @StepBadgeClass(step.Type)">@StepBadgeText(step.Type)</span>
                                 <span style="font-size:11px;flex:1">@StepSummary(step)</span>
                             </div>
@@ -573,6 +583,9 @@
     private bool                _importMode       = false;
     private string              _importText       = "";
     private string              _importMsg        = "";
+
+    private TestCase?                _activeCase;
+    private int                      _activeStepIdx      = -1;
 
     private bool                     _debugOpen          = false;
     private string                   _monitorSql         = "";
@@ -963,12 +976,16 @@
         try
         {
             await Svc.RunAsync(cases, Settings.Settings.SqlConnectionString,
-                msg => _ = LogAsync(msg), OnBreakpoint, ct);
+                msg => _ = LogAsync(msg), OnBreakpoint,
+                (tc, idx) => { _activeCase = tc; _activeStepIdx = idx; _ = InvokeAsync(StateHasChanged); },
+                ct);
             Log("──── Klar ─────────────────────────────");
         }
         catch (OperationCanceledException) { Log("  Avbruten"); }
         catch (Exception ex)               { Log($"  FEL: {ex.Message}"); }
 
+        _activeCase    = null;
+        _activeStepIdx = -1;
         _busy = false;
         await InvokeAsync(StateHasChanged);
     }

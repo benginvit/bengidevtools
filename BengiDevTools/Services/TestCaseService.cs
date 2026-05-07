@@ -34,7 +34,7 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
     public void Remove(TestCase tc)                     { _cases.Remove(tc);         Save(); }
     public void Replace(TestCase old, TestCase updated) { var i = _cases.IndexOf(old); if (i >= 0) _cases[i] = updated; Save(); }
 
-    public async Task RunAsync(IEnumerable<TestCase> cases, string connectionString, Action<string> progress, Func<TestCaseStep, CancellationToken, Task>? onBreakpoint = null, CancellationToken ct = default)
+    public async Task RunAsync(IEnumerable<TestCase> cases, string connectionString, Action<string> progress, Func<TestCaseStep, CancellationToken, Task>? onBreakpoint = null, Action<TestCase, int>? onStep = null, CancellationToken ct = default)
     {
         using var http = new HttpClient(new HttpClientHandler
         {
@@ -64,9 +64,11 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
 
                 if (tc.Steps.Count == 0) { progress("  (inga steg)"); continue; }
 
-                foreach (var step in tc.Steps)
+                for (int stepIdx = 0; stepIdx < tc.Steps.Count; stepIdx++)
                 {
+                    var step = tc.Steps[stepIdx];
                     ct.ThrowIfCancellationRequested();
+                    onStep?.Invoke(tc, stepIdx);
                     if (step.Breakpoint && onBreakpoint is not null)
                         await onBreakpoint(step, ct);
                     ct.ThrowIfCancellationRequested();
