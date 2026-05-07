@@ -30,7 +30,7 @@
         <button class="btn" @onclick="ToggleImport">
             ↑ Importera
         </button>
-        <button class="btn @(_debugOpen ? "active" : "")" @onclick="() => _debugOpen = !_debugOpen" title="SQL Monitor">🔍 Monitor</button>
+        <button class="btn @(_debugOpen ? "active" : "")" @onclick="ToggleMonitor" title="SQL Monitor">🔍 Monitor</button>
         <button class="btn" @onclick="CheckAll">Välj alla</button>
         <button class="btn" @onclick="ClearChecked">Rensa val</button>
         <span style="margin-left:auto;color:var(--muted);font-size:11px;align-self:center">
@@ -439,8 +439,8 @@
     <!-- ── SQL Monitor ── -->
     @if (_debugOpen)
     {
-        <div class="sql-monitor">
-            <div class="sql-monitor-header">
+        <div class="sql-monitor" id="sql-monitor-modal">
+            <div class="sql-monitor-header monitor-drag-handle">
                 <span style="font-weight:600;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">SQL Monitor</span>
                 <select class="input" style="font-size:11px;max-width:170px" @onchange="LoadMonitorScript">
                     <option value="">-- Ladda skript --</option>
@@ -474,7 +474,7 @@
                     </span>
                 }
                 <span style="flex:1"></span>
-                <button class="btn sm" @onclick="() => { _debugOpen = false; _monitorPolling = false; _monitorCts?.Cancel(); }">×</button>
+                <button class="btn sm" style="cursor:default" @onclick="() => { _debugOpen = false; _monitorPolling = false; _monitorCts?.Cancel(); }" @onclick:stopPropagation>×</button>
             </div>
             <div class="sql-monitor-body">
                 <div class="sql-monitor-sql">
@@ -596,6 +596,7 @@
     private int                      _activeStepIdx      = -1;
 
     private bool                     _debugOpen          = false;
+    private bool                     _initDrag           = false;
     private string                   _monitorSql         = "";
     private int                      _monitorPollSeconds = 5;
     private bool                     _monitorPolling     = false;
@@ -615,6 +616,21 @@
         .OrderBy(tc => tc.DataSetId);
 
     protected override void OnInitialized() { Svc.Load(); DataSvc.Load(); LoadToolbox(); }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_initDrag)
+        {
+            _initDrag = false;
+            await JS.InvokeVoidAsync("makeDraggable", "sql-monitor-modal");
+        }
+    }
+
+    private void ToggleMonitor()
+    {
+        _debugOpen = !_debugOpen;
+        if (_debugOpen) _initDrag = true;
+    }
 
     public async ValueTask DisposeAsync() { _runCts?.Cancel(); _monitorCts?.Cancel(); _cts.Cancel(); await Task.CompletedTask; }
 
