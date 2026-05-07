@@ -67,12 +67,20 @@
                                @onchange="e => repo.Selected = (bool)(e.Value ?? false)" />
                         <span>@repo.RepoName</span>
                     </label>
-                    @if (!string.IsNullOrEmpty(repo.Status))
-                    {
-                        <span class="repo-status @StatusClass(repo.Status)">
-                            @StatusIcon(repo.Status)
-                        </span>
-                    }
+                    <div style="margin-left:auto;display:flex;gap:5px;align-items:center;flex-shrink:0">
+                        @if (repo.BuildStale == "stale")
+                        {
+                            <span class="stale-badge" title="Källkod nyare än senaste bygget — bygg för senaste koden">⚠</span>
+                        }
+                        else if (repo.BuildStale == "no-build")
+                        {
+                            <span class="stale-badge no-build" title="Ej byggt">○</span>
+                        }
+                        @if (!string.IsNullOrEmpty(repo.Status))
+                        {
+                            <span class="repo-status @StatusClass(repo.Status)">@StatusIcon(repo.Status)</span>
+                        }
+                    </div>
                 </div>
             }
         </div>
@@ -90,7 +98,17 @@
         {
             <div class="repo-window" id="repo-@repo.RepoName">
                 <div class="repo-window-header">
-                    <span class="repo-window-name">@repo.RepoName</span>
+                    <div style="display:flex;align-items:center;gap:8px">
+                        <span class="repo-window-name">@repo.RepoName</span>
+                        @if (repo.BuildStale == "stale")
+                        {
+                            <span class="stale-badge" title="Källkod nyare än senaste bygget">⚠ ej byggd</span>
+                        }
+                        else if (repo.BuildStale == "no-build")
+                        {
+                            <span class="stale-badge no-build" title="Ej byggt">○ aldrig byggd</span>
+                        }
+                    </div>
                     @if (!string.IsNullOrEmpty(repo.Status))
                     {
                         <span class="repo-status @StatusClass(repo.Status)">
@@ -139,6 +157,7 @@
                 return new RepoState
                 {
                     RepoName = name,
+                    RepoDir  = dir,
                     SlnPath  = sln,
                     Selected = prev.TryGetValue(name, out var p) ? p.Selected : true,
                     Status   = "",
@@ -147,6 +166,59 @@
             .Where(r => r is not null)
             .Cast<RepoState>()
             .ToList();
+
+        _ = CheckAllStalenessAsync();
+    }
+
+    private async Task CheckAllStalenessAsync()
+    {
+        var repos = _repos.ToList();
+        await Task.Run(() =>
+        {
+            foreach (var repo in repos)
+                repo.BuildStale = GetBuildStale(repo.RepoDir);
+        });
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private static string GetBuildStale(string repoDir)
+    {
+        // Newest DLL in any bin/ subfolder
+        var binRoot = Path.Combine(repoDir, "bin");
+        var newestBuild = DateTime.MinValue;
+        if (Directory.Exists(binRoot))
+        {
+            try
+            {
+                foreach (var f in Directory.GetFiles(binRoot, "*.dll", SearchOption.AllDirectories))
+                {
+                    var t = File.GetLastWriteTimeUtc(f);
+                    if (t > newestBuild) newestBuild = t;
+                }
+            }
+            catch { }
+        }
+
+        if (newestBuild == DateTime.MinValue) return "no-build";
+
+        // Newest source file outside bin/ and obj/
+        var newestSource = DateTime.MinValue;
+        try
+        {
+            foreach (var pattern in new[] { "*.cs", "*.csproj" })
+            foreach (var f in Directory.GetFiles(repoDir, pattern, SearchOption.AllDirectories))
+            {
+                var rel = Path.GetRelativePath(repoDir, f);
+                if (rel.StartsWith("bin", StringComparison.OrdinalIgnoreCase) ||
+                    rel.StartsWith("obj", StringComparison.OrdinalIgnoreCase) ||
+                    rel.StartsWith(".git")) continue;
+                var t = File.GetLastWriteTimeUtc(f);
+                if (t > newestSource) newestSource = t;
+            }
+        }
+        catch { }
+
+        return newestSource > newestBuild.AddSeconds(10) ? "stale" : "ok";
     }
 
     private static string? FindSln(string dir)
@@ -201,7 +273,11 @@
                 onProgress: (repo, status) =>
                 {
                     var r = _repos.FirstOrDefault(x => x.RepoName == repo);
-                    if (r is not null) r.Status = status;
+                    if (r is not null)
+                    {
+                        r.Status = status;
+                        if (status == "OK") r.BuildStale = "ok";
+                    }
                 },
                 onOutputLine: (repo, line) =>
                 {
@@ -257,9 +333,11 @@
 
     private class RepoState
     {
-        public required string RepoName { get; init; }
-        public required string SlnPath  { get; init; }
-        public bool   Selected { get; set; }
-        public string Status   { get; set; } = "";
+        public required string RepoName   { get; init; }
+        public required string RepoDir    { get; init; }
+        public required string SlnPath    { get; init; }
+        public bool   Selected   { get; set; }
+        public string Status     { get; set; } = "";
+        public string BuildStale { get; set; } = ""; // "stale" | "ok" | "no-build" | ""
     }
 }
