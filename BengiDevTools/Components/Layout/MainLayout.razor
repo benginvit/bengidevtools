@@ -5,9 +5,9 @@
 <div class="app-root">
     <nav class="nav">
         <a href="/" class="@(_path == "/" ? "active" : "")" @onclick='() => Nav.NavigateTo("/")' @onclick:preventDefault>Apps</a>
-        <a href="/testfall" class="@(_path.StartsWith("/testfall") && !_path.StartsWith("/testfalldata") ? "active" : "")" @onclick='() => Nav.NavigateTo("/testfall")' @onclick:preventDefault>Testfall</a>
-        <a href="/testfalldata" class="@(_path.StartsWith("/testfalldata") ? "active" : "")" @onclick='() => Nav.NavigateTo("/testfalldata")' @onclick:preventDefault>Testfalldata</a>
-        <a href="/settings" class="@(_path.StartsWith("/settings") ? "active" : "")" @onclick='() => Nav.NavigateTo("/settings")' @onclick:preventDefault>Inställningar</a>
+        <a href="/testfall" class="@(_path == "/testfall" ? "active" : "")" @onclick='() => Nav.NavigateTo("/testfall")' @onclick:preventDefault>Testfall</a>
+        <a href="/testfalldata" class="@(_path == "/testfalldata" ? "active" : "")" @onclick='() => Nav.NavigateTo("/testfalldata")' @onclick:preventDefault>Testfalldata</a>
+        <a href="/settings" class="@(_path == "/settings" ? "active" : "")" @onclick='() => Nav.NavigateTo("/settings")' @onclick:preventDefault>Inställningar</a>
     </nav>
     <main class="page">
         <div style="@PageStyle("/")"><AppsPage /></div>
@@ -32,13 +32,8 @@
         InvokeAsync(StateHasChanged);
     }
 
-    private string PageStyle(string pagePath)
-    {
-        bool active = pagePath == "/"
-            ? _path == "/"
-            : _path.StartsWith(pagePath, StringComparison.OrdinalIgnoreCase);
-        return active ? "" : "display:none";
-    }
+    private string PageStyle(string pagePath) =>
+        string.Equals(_path, pagePath, StringComparison.OrdinalIgnoreCase) ? "" : "display:none";
 
     public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
 }
