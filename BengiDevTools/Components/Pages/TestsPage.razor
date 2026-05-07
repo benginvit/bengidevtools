@@ -489,19 +489,10 @@
                     }
                     else if (_monitorResults.Count > 0)
                     {
-                        <div class="sql-monitor-cols">
-                            @foreach (var col in MonitorAllCols)
-                            {
-                                var hidden = _monitorHiddenCols.Contains(col);
-                                <button class="col-pill @(hidden ? "col-pill-hidden" : "")"
-                                        @onclick="() => ToggleMonitorCol(col)">@col</button>
-                            }
-                        </div>
                         <div class="sql-monitor-table-wrap">
                             @for (int si = 0; si < _monitorResults.Count; si++)
                             {
-                                var rs      = _monitorResults[si];
-                                var visCols = rs.Cols.Where(c => !_monitorHiddenCols.Contains(c)).ToList();
+                                var rs = _monitorResults[si];
                                 @if (_monitorResults.Count > 1)
                                 {
                                     <div style="font-size:11px;color:var(--muted);padding:4px 10px;background:var(--surface);border-bottom:1px solid var(--border)">
@@ -509,14 +500,15 @@
                                     </div>
                                 }
                                 <table class="monitor-table">
-                                    <thead><tr>@foreach (var col in visCols) { <th>@col</th> }</tr></thead>
+                                    <thead><tr>@foreach (var col in rs.Cols) { <th>@col</th> }</tr></thead>
                                     <tbody>
                                         @foreach (var row in rs.Rows)
                                         {
                                             <tr class="@MonitorRowClass(row)">
-                                                @foreach (var col in visCols)
+                                                @foreach (var col in rs.Cols)
                                                 {
-                                                    <td title="@row.GetValueOrDefault(col, "")">@row.GetValueOrDefault(col, "")</td>
+                                                    var val = row.GetValueOrDefault(col, "");
+                                                    <td @onclick="() => OpenCellDetail(col, val)" style="cursor:pointer">@val</td>
                                                 }
                                             </tr>
                                         }
@@ -533,6 +525,18 @@
                     }
                 </div>
             </div>
+            @if (_cellDetailCol is not null)
+            {
+                <div class="cell-detail-backdrop" @onclick="() => _cellDetailCol = null">
+                    <div class="cell-detail-popup" @onclick:stopPropagation>
+                        <div class="cell-detail-header">
+                            <span style="font-weight:600;font-size:12px">@_cellDetailCol</span>
+                            <button class="btn sm" @onclick="() => _cellDetailCol = null">✕</button>
+                        </div>
+                        <pre class="cell-detail-body">@_cellDetailFormatted</pre>
+                    </div>
+                </div>
+            }
         </div>
     }
 
@@ -598,9 +602,9 @@
     private bool                     _monitorRunning     = false;
     private CancellationTokenSource? _monitorCts;
     private List<(List<string> Cols, List<Dictionary<string,string>> Rows)> _monitorResults   = [];
-    private HashSet<string>                                                _monitorHiddenCols = [];
-    private IEnumerable<string> MonitorAllCols => _monitorResults.SelectMany(r => r.Cols).Distinct(StringComparer.OrdinalIgnoreCase);
     private string?                  _monitorError;
+    private string?                  _cellDetailCol;
+    private string                   _cellDetailFormatted = "";
     private DateTime?                _monitorLastRun;
 
     private IEnumerable<TestCase> Filtered => Svc.Cases
@@ -1080,7 +1084,6 @@
             _monitorResults = results;
             _monitorError   = err;
             _monitorLastRun = DateTime.Now;
-            _monitorHiddenCols.IntersectWith(MonitorAllCols.ToHashSet(StringComparer.OrdinalIgnoreCase));
         }
         catch (OperationCanceledException) { }
         _monitorRunning = false;
@@ -1111,8 +1114,7 @@
                     _monitorResults = results;
                     _monitorError   = err;
                     _monitorLastRun = DateTime.Now;
-                    _monitorHiddenCols.IntersectWith(MonitorAllCols.ToHashSet(StringComparer.OrdinalIgnoreCase));
-                }
+                        }
                 catch (OperationCanceledException) { break; }
                 catch (Exception ex)               { _monitorError = ex.Message; }
                 _monitorRunning = false;
@@ -1125,9 +1127,22 @@
         await InvokeAsync(StateHasChanged);
     }
 
-    private void ToggleMonitorCol(string col)
+    private void OpenCellDetail(string col, string value)
     {
-        if (!_monitorHiddenCols.Remove(col)) _monitorHiddenCols.Add(col);
+        _cellDetailCol = col;
+        _cellDetailFormatted = TryFormatJson(value);
+    }
+
+    private static string TryFormatJson(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return value;
+        var t = value.TrimStart();
+        if (t.StartsWith('{') || t.StartsWith('['))
+        {
+            try { return System.Text.Json.JsonSerializer.Serialize(System.Text.Json.JsonDocument.Parse(value), new System.Text.Json.JsonSerializerOptions { WriteIndented = true }); }
+            catch { }
+        }
+        return value;
     }
 
     private static string MonitorRowClass(Dictionary<string, string> row)
