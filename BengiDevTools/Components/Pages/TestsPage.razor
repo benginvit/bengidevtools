@@ -437,10 +437,8 @@
     </div>
 
     <!-- ── SQL Monitor ── -->
-    @if (_debugOpen)
-    {
-        <div class="sql-monitor" id="sql-monitor-modal">
-            <div class="sql-monitor-header" onmousedown="monitorDragStart(event,'sql-monitor-modal')">
+    <div class="sql-monitor @(!_debugOpen ? "monitor-hidden" : "")" @ref="_monitorRef">
+        <div class="sql-monitor-header">
                 <span style="font-weight:600;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">SQL Monitor</span>
                 <select class="input" style="font-size:11px;max-width:170px" @onchange="LoadMonitorScript">
                     <option value="">-- Ladda skript --</option>
@@ -538,7 +536,6 @@
                 </div>
             </div>
         </div>
-    }
 
     <!-- ── Status log ── -->
     @if (_log.Count > 0)
@@ -596,6 +593,7 @@
     private int                      _activeStepIdx      = -1;
 
     private bool                     _debugOpen          = false;
+    private ElementReference         _monitorRef;
     private string                   _monitorSql         = "";
     private int                      _monitorPollSeconds = 5;
     private bool                     _monitorPolling     = false;
@@ -615,6 +613,12 @@
         .OrderBy(tc => tc.DataSetId);
 
     protected override void OnInitialized() { Svc.Load(); DataSvc.Load(); LoadToolbox(); }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+            await JS.InvokeVoidAsync("makeDraggable", _monitorRef);
+    }
 
     private void ToggleMonitor() => _debugOpen = !_debugOpen;
 

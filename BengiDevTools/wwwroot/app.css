@@ -711,6 +711,8 @@ body {
 
 /* ─── SQL Monitor panel ────────────────────────────────────────────────────── */
 
+.monitor-hidden { display: none !important; }
+
 .sql-monitor {
   position: fixed;
   top: 10vh;
