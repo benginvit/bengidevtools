@@ -68,14 +68,9 @@
                         <span>@repo.RepoName</span>
                     </label>
                     <div style="margin-left:auto;display:flex;gap:5px;align-items:center;flex-shrink:0">
-                        @if (repo.BuildStale == "stale")
-                        {
-                            <span class="stale-badge" title="Källkod nyare än senaste bygget — bygg för senaste koden">⚠</span>
-                        }
-                        else if (repo.BuildStale == "no-build")
-                        {
-                            <span class="stale-badge no-build" title="Ej byggt">○</span>
-                        }
+                        <span class="@StaleBadgeClass(repo.BuildStale)" title="@StaleBadgeTitle(repo.BuildStale)">
+                            @StaleBadgeIcon(repo.BuildStale)
+                        </span>
                         @if (!string.IsNullOrEmpty(repo.Status))
                         {
                             <span class="repo-status @StatusClass(repo.Status)">@StatusIcon(repo.Status)</span>
@@ -100,13 +95,11 @@
                 <div class="repo-window-header">
                     <div style="display:flex;align-items:center;gap:8px">
                         <span class="repo-window-name">@repo.RepoName</span>
-                        @if (repo.BuildStale == "stale")
+                        @if (!string.IsNullOrEmpty(repo.BuildStale))
                         {
-                            <span class="stale-badge" title="Källkod nyare än senaste bygget">⚠ ej byggd</span>
-                        }
-                        else if (repo.BuildStale == "no-build")
-                        {
-                            <span class="stale-badge no-build" title="Ej byggt">○ aldrig byggd</span>
+                            <span class="@StaleBadgeClass(repo.BuildStale)" title="@StaleBadgeTitle(repo.BuildStale)">
+                                @StaleBadgeIcon(repo.BuildStale) @StaleBadgeLabel(repo.BuildStale)
+                            </span>
                         }
                     </div>
                     @if (!string.IsNullOrEmpty(repo.Status))
@@ -324,6 +317,38 @@
 
     private static string StatusIcon(string status) =>
         status == "OK" ? "✅" : status == "FAILED" ? "❌" : "⟳";
+
+    private static string StaleBadgeClass(string stale) => stale switch
+    {
+        "stale"    => "stale-badge",
+        "no-build" => "stale-badge no-build",
+        "ok"       => "stale-badge fresh",
+        _          => "stale-badge checking",
+    };
+
+    private static string StaleBadgeIcon(string stale) => stale switch
+    {
+        "stale"    => "⚠",
+        "no-build" => "○",
+        "ok"       => "✓",
+        _          => "…",
+    };
+
+    private static string StaleBadgeLabel(string stale) => stale switch
+    {
+        "stale"    => "ej byggd",
+        "no-build" => "aldrig byggd",
+        "ok"       => "färsk",
+        _          => "",
+    };
+
+    private static string StaleBadgeTitle(string stale) => stale switch
+    {
+        "stale"    => "Källkod är nyare än senaste bygget — bygg för senaste koden",
+        "no-build" => "Inga byggda DLL:er hittades",
+        "ok"       => "Byggt med senaste koden",
+        _          => "Kontrollerar...",
+    };
 
     public void Dispose()
     {
