@@ -743,7 +743,26 @@ body {
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
+  position: relative;
+  transition: width .15s ease;
 }
+.sql-monitor-sql.sql-panel-collapsed {
+  width: 28px;
+}
+.sql-panel-toggle {
+  position: absolute;
+  bottom: 8px;
+  right: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  padding: 2px 5px;
+  cursor: pointer;
+  line-height: 1;
+}
+.sql-panel-toggle:hover { color: var(--text); border-color: var(--blue); }
 
 .sql-monitor-results {
   flex: 1;

@@ -477,10 +477,17 @@
                 <button class="btn sm" @onclick="() => { _debugOpen = false; _monitorPolling = false; _monitorCts?.Cancel(); }">✕ Stäng</button>
             </div>
             <div class="sql-monitor-body">
-                <div class="sql-monitor-sql">
-                    <textarea class="debug-sql-editor" style="flex:1;resize:none;font-size:12px;border:none;border-radius:0"
-                              placeholder="SELECT ..." spellcheck="false"
-                              @bind="_monitorSql" @bind:event="oninput" />
+                <div class="sql-monitor-sql @(_sqlPanelOpen ? "" : "sql-panel-collapsed")">
+                    @if (_sqlPanelOpen)
+                    {
+                        <textarea class="debug-sql-editor" style="flex:1;resize:none;font-size:12px;border:none;border-radius:0"
+                                  placeholder="SELECT ..." spellcheck="false"
+                                  @bind="_monitorSql" @bind:event="oninput" />
+                    }
+                    <button class="sql-panel-toggle" @onclick="() => _sqlPanelOpen = !_sqlPanelOpen"
+                            title="@(_sqlPanelOpen ? "Dölj SQL-editor" : "Visa SQL-editor")">
+                        @(_sqlPanelOpen ? "◀" : "▶")
+                    </button>
                 </div>
                 <div class="sql-monitor-results">
                     @if (_monitorError is not null)
@@ -596,6 +603,7 @@
     private int                      _activeStepIdx      = -1;
 
     private bool                     _debugOpen          = false;
+    private bool                     _sqlPanelOpen       = true;
     private string                   _monitorSql         = "";
     private int                      _monitorPollSeconds = 5;
     private bool                     _monitorPolling     = false;
