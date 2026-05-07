@@ -711,26 +711,13 @@ body {
 
 /* ─── SQL Monitor panel ────────────────────────────────────────────────────── */
 
-.monitor-hidden { display: none !important; }
-
 .sql-monitor {
-  position: fixed;
-  top: 10vh;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 78vw;
-  height: 62vh;
-  min-width: 440px;
-  min-height: 260px;
-  resize: both;
-  overflow: auto;
-  z-index: 200;
-  box-shadow: 0 10px 48px rgba(0,0,0,.75);
+  flex: 0 0 340px;
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-top: 2px solid var(--border);
   display: flex;
   flex-direction: column;
+  min-height: 200px;
 }
 
 .sql-monitor-header {
@@ -740,12 +727,7 @@ body {
   padding: 4px 8px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  cursor: move;
-  user-select: none;
 }
-.sql-monitor-header button,
-.sql-monitor-header select,
-.sql-monitor-header input { cursor: pointer; }
 
 .sql-monitor-body {
   display: flex;

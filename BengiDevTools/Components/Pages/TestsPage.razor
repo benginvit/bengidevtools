@@ -367,7 +367,7 @@
                         <button class="btn sm danger"  @onclick="CancelBreakpoint">⏹ Avbryt</button>
                     </div>
                 }
-                <div style="flex:1;overflow-y:auto;padding:10px 12px">
+                <div style="flex:1;min-height:0;overflow-y:auto;padding:10px 12px">
                     @if (_selected.Steps.Count > 0)
                     {
                         @for (int i = 0; i < _selected.Steps.Count; i++)
@@ -399,6 +399,104 @@
                         <div style="color:var(--muted);font-size:12px">Inga steg definierade.</div>
                     }
                 </div>
+                @if (_debugOpen)
+                {
+                    <div class="sql-monitor">
+                        <div class="sql-monitor-header">
+                            <span style="font-weight:600;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">SQL Monitor</span>
+                            <select class="input" style="font-size:11px;max-width:170px" @onchange="LoadMonitorScript">
+                                <option value="">-- Ladda skript --</option>
+                                @foreach (var s in _toolboxScripts)
+                                {
+                                    <option value="@s.Path">@s.Name</option>
+                                }
+                            </select>
+                            <button class="btn sm primary" @onclick="() => _ = RunMonitorAsync()"
+                                    disabled="@(_monitorRunning || string.IsNullOrWhiteSpace(_monitorSql))">
+                                @(_monitorRunning ? "⟳" : "▶") Kör
+                            </button>
+                            <select class="input" style="width:62px;font-size:11px" @bind="_monitorPollSeconds">
+                                <option value="1">1 s</option>
+                                <option value="2">2 s</option>
+                                <option value="5">5 s</option>
+                                <option value="10">10 s</option>
+                                <option value="30">30 s</option>
+                                <option value="60">60 s</option>
+                            </select>
+                            <button class="btn sm @(_monitorPolling ? "danger" : "")" @onclick="ToggleMonitorPoll"
+                                    disabled="@string.IsNullOrWhiteSpace(_monitorSql)">
+                                @(_monitorPolling ? "⏹ Stoppa" : "⟳ Polla")
+                            </button>
+                            @if (_monitorLastRun.HasValue)
+                            {
+                                <span style="font-size:10px;color:var(--muted)">
+                                    @_monitorLastRun.Value.ToString("HH:mm:ss")
+                                    @{ var totalRows = _monitorResults.Sum(r => r.Rows.Count); }
+                                    @if (totalRows > 0) { <span> · @totalRows rad@(totalRows == 1 ? "" : "er")@(_monitorResults.Count > 1 ? $" ({_monitorResults.Count} sets)" : "")</span> }
+                                </span>
+                            }
+                            <span style="flex:1"></span>
+                            <button class="btn sm" @onclick="() => { _debugOpen = false; _monitorPolling = false; _monitorCts?.Cancel(); }">×</button>
+                        </div>
+                        <div class="sql-monitor-body">
+                            <div class="sql-monitor-sql">
+                                <textarea class="debug-sql-editor" style="flex:1;resize:none;font-size:11px;border:none;border-radius:0"
+                                          placeholder="SELECT ..." spellcheck="false"
+                                          @bind="_monitorSql" @bind:event="oninput" />
+                            </div>
+                            <div class="sql-monitor-results">
+                                @if (_monitorError is not null)
+                                {
+                                    <div style="color:var(--red);font-size:11px;padding:8px 10px">FEL: @_monitorError</div>
+                                }
+                                else if (_monitorResults.Count > 0)
+                                {
+                                    <div class="sql-monitor-cols">
+                                        @foreach (var col in MonitorAllCols)
+                                        {
+                                            var hidden = _monitorHiddenCols.Contains(col);
+                                            <button class="col-pill @(hidden ? "col-pill-hidden" : "")"
+                                                    @onclick="() => ToggleMonitorCol(col)">@col</button>
+                                        }
+                                    </div>
+                                    <div class="sql-monitor-table-wrap">
+                                        @for (int si = 0; si < _monitorResults.Count; si++)
+                                        {
+                                            var rs      = _monitorResults[si];
+                                            var visCols = rs.Cols.Where(c => !_monitorHiddenCols.Contains(c)).ToList();
+                                            @if (_monitorResults.Count > 1)
+                                            {
+                                                <div style="font-size:10px;color:var(--muted);padding:3px 8px;background:var(--surface);border-bottom:1px solid var(--border)">
+                                                    Resultat @(si + 1) — @rs.Rows.Count rad@(rs.Rows.Count == 1 ? "" : "er")
+                                                </div>
+                                            }
+                                            <table class="monitor-table">
+                                                <thead><tr>@foreach (var col in visCols) { <th>@col</th> }</tr></thead>
+                                                <tbody>
+                                                    @foreach (var row in rs.Rows)
+                                                    {
+                                                        <tr class="@MonitorRowClass(row)">
+                                                            @foreach (var col in visCols)
+                                                            {
+                                                                <td title="@row.GetValueOrDefault(col, "")">@row.GetValueOrDefault(col, "")</td>
+                                                            }
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        }
+                                    </div>
+                                }
+                                else if (!_monitorRunning)
+                                {
+                                    <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:11px">
+                                        Skriv en SQL-fråga och kör, eller starta polling
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
             }
             else
             {
@@ -435,107 +533,6 @@
         </div>
 
     </div>
-
-    <!-- ── SQL Monitor ── -->
-    <div class="sql-monitor @(!_debugOpen ? "monitor-hidden" : "")" @ref="_monitorRef">
-        <div class="sql-monitor-header">
-                <span style="font-weight:600;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">SQL Monitor</span>
-                <select class="input" style="font-size:11px;max-width:170px" @onchange="LoadMonitorScript">
-                    <option value="">-- Ladda skript --</option>
-                    @foreach (var s in _toolboxScripts)
-                    {
-                        <option value="@s.Path">@s.Name</option>
-                    }
-                </select>
-                <button class="btn sm primary" @onclick="() => _ = RunMonitorAsync()"
-                        disabled="@(_monitorRunning || string.IsNullOrWhiteSpace(_monitorSql))">
-                    @(_monitorRunning ? "⟳" : "▶") Kör
-                </button>
-                <select class="input" style="width:62px;font-size:11px" @bind="_monitorPollSeconds">
-                    <option value="1">1 s</option>
-                    <option value="2">2 s</option>
-                    <option value="5">5 s</option>
-                    <option value="10">10 s</option>
-                    <option value="30">30 s</option>
-                    <option value="60">60 s</option>
-                </select>
-                <button class="btn sm @(_monitorPolling ? "danger" : "")" @onclick="ToggleMonitorPoll"
-                        disabled="@string.IsNullOrWhiteSpace(_monitorSql)">
-                    @(_monitorPolling ? "⏹ Stoppa" : "⟳ Polla")
-                </button>
-                @if (_monitorLastRun.HasValue)
-                {
-                    <span style="font-size:10px;color:var(--muted)">
-                        @_monitorLastRun.Value.ToString("HH:mm:ss")
-                        @{ var totalRows = _monitorResults.Sum(r => r.Rows.Count); }
-                        @if (totalRows > 0) { <span> · @totalRows rad@(totalRows == 1 ? "" : "er")@(_monitorResults.Count > 1 ? $" ({_monitorResults.Count} sets)" : "")</span> }
-                    </span>
-                }
-                <span style="flex:1"></span>
-                <button class="btn sm" @onclick="() => { _debugOpen = false; _monitorPolling = false; _monitorCts?.Cancel(); }">×</button>
-            </div>
-            <div class="sql-monitor-body">
-                <div class="sql-monitor-sql">
-                    <textarea class="debug-sql-editor" style="flex:1;resize:none;font-size:11px;border:none;border-radius:0"
-                              placeholder="SELECT ..." spellcheck="false"
-                              @bind="_monitorSql" @bind:event="oninput" />
-                </div>
-                <div class="sql-monitor-results">
-                    @if (_monitorError is not null)
-                    {
-                        <div style="color:var(--red);font-size:11px;padding:8px 10px">FEL: @_monitorError</div>
-                    }
-                    else if (_monitorResults.Count > 0)
-                    {
-                        <div class="sql-monitor-cols">
-                            @foreach (var col in MonitorAllCols)
-                            {
-                                var hidden = _monitorHiddenCols.Contains(col);
-                                <button class="col-pill @(hidden ? "col-pill-hidden" : "")"
-                                        @onclick="() => ToggleMonitorCol(col)">@col</button>
-                            }
-                        </div>
-                        <div class="sql-monitor-table-wrap">
-                            @for (int si = 0; si < _monitorResults.Count; si++)
-                            {
-                                var rs      = _monitorResults[si];
-                                var visCols = rs.Cols.Where(c => !_monitorHiddenCols.Contains(c)).ToList();
-                                @if (_monitorResults.Count > 1)
-                                {
-                                    <div style="font-size:10px;color:var(--muted);padding:3px 8px;background:var(--surface);border-bottom:1px solid var(--border)">
-                                        Resultat @(si + 1) — @rs.Rows.Count rad@(rs.Rows.Count == 1 ? "" : "er")
-                                    </div>
-                                }
-                                <table class="monitor-table">
-                                    <thead>
-                                        <tr>
-                                            @foreach (var col in visCols) { <th>@col</th> }
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        @foreach (var row in rs.Rows)
-                                        {
-                                            <tr class="@MonitorRowClass(row)">
-                                                @foreach (var col in visCols)
-                                                {
-                                                    <td title="@row.GetValueOrDefault(col, "")">@row.GetValueOrDefault(col, "")</td>
-                                                }
-                                            </tr>
-                                        }
-                                    </tbody>
-                                </table>
-                            }
-                        </div>
-                    }
-                    else if (!_monitorRunning)
-                    {
-                        <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:11px">
-                            Skriv en SQL-fråga och kör, eller starta polling
-                        </div>
-                    }
-                </div>
-            </div>
-        </div>
 
     <!-- ── Status log ── -->
     @if (_log.Count > 0)
@@ -593,7 +590,6 @@
     private int                      _activeStepIdx      = -1;
 
     private bool                     _debugOpen          = false;
-    private ElementReference         _monitorRef;
     private string                   _monitorSql         = "";
     private int                      _monitorPollSeconds = 5;
     private bool                     _monitorPolling     = false;
@@ -613,12 +609,6 @@
         .OrderBy(tc => tc.DataSetId);
 
     protected override void OnInitialized() { Svc.Load(); DataSvc.Load(); LoadToolbox(); }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-            try { await JS.InvokeVoidAsync("makeDraggable", _monitorRef); } catch { }
-    }
 
     private void ToggleMonitor() => _debugOpen = !_debugOpen;
 
