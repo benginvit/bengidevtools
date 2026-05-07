@@ -192,6 +192,10 @@
                     </div>
                     <div class="testfall-form-body">
                         <div class="form-row">
+                            <div class="form-group" style="width:56px">
+                                <label class="form-label">ID</label>
+                                <input class="input" value="#@_form.DataSetId" readonly style="color:var(--muted)" />
+                            </div>
                             <div class="form-group" style="width:120px">
                                 <label class="form-label">Tag (kategori)</label>
                                 <input class="input" @bind="_form.Tag" @bind:event="oninput" placeholder="t.ex. EM, AM, Igun" />
@@ -339,10 +343,13 @@
             {
                 <div class="testfall-form-header">
                     <div>
-                        @if (!string.IsNullOrEmpty(_selected.Tag))
-                        {
-                            <span class="testfall-tag">@_selected.Tag</span>
-                        }
+                        <div style="display:flex;align-items:center;gap:6px">
+                            <span style="color:var(--muted);font-size:11px">#@_selected.DataSetId</span>
+                            @if (!string.IsNullOrEmpty(_selected.Tag))
+                            {
+                                <span class="testfall-tag">@_selected.Tag</span>
+                            }
+                        </div>
                         <div style="font-size:12px;margin-top:2px;font-weight:600">@_selected.Beskrivning</div>
                     </div>
                     <div style="display:flex;gap:6px;align-items:center">
@@ -419,6 +426,7 @@
                            style="accent-color:var(--blue);flex-shrink:0"
                            @onclick:stopPropagation
                            @onchange="e => Toggle(tc.DataSetId, (bool)(e.Value ?? false))" />
+                    <span style="color:var(--muted);font-size:10px;flex-shrink:0">#@tc.DataSetId</span>
                     @if (!string.IsNullOrEmpty(tc.Tag))
                     {
                         <span class="testfall-tag">@tc.Tag</span>
