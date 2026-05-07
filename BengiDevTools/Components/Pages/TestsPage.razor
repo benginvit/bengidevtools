@@ -617,7 +617,7 @@
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
-            await JS.InvokeVoidAsync("makeDraggable", _monitorRef);
+            try { await JS.InvokeVoidAsync("makeDraggable", _monitorRef); } catch { }
     }
 
     private void ToggleMonitor() => _debugOpen = !_debugOpen;
