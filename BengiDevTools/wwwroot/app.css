@@ -721,7 +721,7 @@ body {
   min-width: 440px;
   min-height: 260px;
   resize: both;
-  overflow: hidden;
+  overflow: auto;
   z-index: 200;
   box-shadow: 0 10px 48px rgba(0,0,0,.75);
   background: var(--panel);
