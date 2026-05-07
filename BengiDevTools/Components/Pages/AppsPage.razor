@@ -197,7 +197,7 @@
                                     }
                                     else
                                     {
-                                        @foreach (var line in con.Lines.ToList())
+                                        @foreach (var line in con.Lines.AsEnumerable().Reverse())
                                         {
                                             <div style="color:@ColorLine(line)">@(string.IsNullOrEmpty(line) ? " " : line)</div>
                                         }
@@ -255,7 +255,7 @@
                     {
                         <div class="app-log-window" style="margin:0 4px 4px;max-height:200px">
                             <div class="build-log">
-                                @foreach (var line in slnBs.Lines.ToList())
+                                @foreach (var line in slnBs.Lines.AsEnumerable().Reverse())
                                 {
                                     <div style="color:@ColorLine(line)">@(string.IsNullOrEmpty(line) ? " " : line)</div>
                                 }
@@ -301,7 +301,7 @@
                                         <button class="btn sm" @onclick="() => { bs.Lines.Clear(); }">Rensa</button>
                                     </div>
                                     <div class="build-log">
-                                        @foreach (var line in bs.Lines.ToList())
+                                        @foreach (var line in bs.Lines.AsEnumerable().Reverse())
                                         {
                                             <div style="color:@ColorLine(line)">@(string.IsNullOrEmpty(line) ? " " : line)</div>
                                         }
@@ -527,7 +527,6 @@
     private async Task StatusLogAsync(string msg)
     {
         await InvokeAsync(() => { StatusLog(msg); StateHasChanged(); });
-        try { await JS.InvokeVoidAsync("scrollToBottom", "status-log", _cts.Token); } catch { }
     }
 
     private static string StatusColor(string line)
@@ -763,7 +762,6 @@
                 if (state.Lines.Count > 2000) state.Lines.RemoveRange(0, state.Lines.Count - 2000);
                 state.Offset += newLines.Length;
                 await InvokeAsync(StateHasChanged);
-                try { await JS.InvokeVoidAsync("scrollToBottom", consoleId, ct); } catch { }
             }
             try { await Task.Delay(800, ct); } catch (OperationCanceledException) { break; }
         }
