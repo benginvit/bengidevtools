@@ -57,6 +57,10 @@
                     <span style="color:var(--muted)">Välj alla</span>
                 </label>
                 <span style="color:var(--muted)">@_runningCount/@_apps.Count kör</span>
+                <button class="btn sm @(_showStats ? "primary" : "")"
+                        style="padding:1px 5px"
+                        @onclick="() => _showStats = !_showStats"
+                        title="Visa CPU/minne per app">📊</button>
             </div>
         </div>
         <!-- Bygg header -->
@@ -152,7 +156,7 @@
                                   @onclick:stopPropagation
                                   @onclick="() => OpenPort(app)">@(app.HttpsPort.HasValue ? ":" + app.HttpsPort : string.Empty)</span>
                             <span class="app-stats" title="Arbetsminne · CPU">
-                                @if (app.IsRunning && app.MemoryMb > 0)
+                                @if (_showStats && app.IsRunning && app.MemoryMb > 0)
                                 {
                                     <span>@app.MemoryMb MB</span>
                                     <span style="color:@(app.CpuPercent > 20 ? "var(--yellow)" : "inherit")">@app.CpuPercent.ToString("0.#")%</span>
@@ -388,6 +392,7 @@
     private bool                     _gitLoading;
     private bool                     _starting;
     private bool                     _stopping;
+    private bool                     _showStats;
     private DateTime?                _lastScanned;
     private readonly HashSet<string> _busyIds    = [];
 
@@ -490,7 +495,7 @@
                     app.GitStatus    = Scan.GetGitStatus(app.RepoName);
                     var b = Scan.GetGitBranch(app.RepoName);
                     if (!string.IsNullOrEmpty(b)) app.GitBranch = b;
-                    if (app.IsRunning)
+                    if (app.IsRunning && _showStats)
                         (app.MemoryMb, app.CpuPercent) = Proc.GetResourceUsage(app.Id);
                     else
                         (app.MemoryMb, app.CpuPercent) = (0, 0);

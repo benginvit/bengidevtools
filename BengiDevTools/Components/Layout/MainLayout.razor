@@ -1,13 +1,44 @@
 @inherits LayoutComponentBase
+@inject NavigationManager Nav
+@implements IDisposable
 
 <div class="app-root">
     <nav class="nav">
-        <NavLink href="/" Match="NavLinkMatch.All">Apps</NavLink>
-        <NavLink href="/testfall">Testfall</NavLink>
-        <NavLink href="/testfalldata">Testfalldata</NavLink>
-        <NavLink href="/settings">Inställningar</NavLink>
+        <a href="/" class="@(_path == "/" ? "active" : "")" @onclick='() => Nav.NavigateTo("/")' @onclick:preventDefault>Apps</a>
+        <a href="/testfall" class="@(_path.StartsWith("/testfall") && !_path.StartsWith("/testfalldata") ? "active" : "")" @onclick='() => Nav.NavigateTo("/testfall")' @onclick:preventDefault>Testfall</a>
+        <a href="/testfalldata" class="@(_path.StartsWith("/testfalldata") ? "active" : "")" @onclick='() => Nav.NavigateTo("/testfalldata")' @onclick:preventDefault>Testfalldata</a>
+        <a href="/settings" class="@(_path.StartsWith("/settings") ? "active" : "")" @onclick='() => Nav.NavigateTo("/settings")' @onclick:preventDefault>Inställningar</a>
     </nav>
     <main class="page">
-        @Body
+        <div style="@PageStyle("/")"><AppsPage /></div>
+        <div style="@PageStyle("/testfall")"><TestsPage /></div>
+        <div style="@PageStyle("/testfalldata")"><TestfallDataPage /></div>
+        <div style="@PageStyle("/settings")"><SettingsPage /></div>
     </main>
 </div>
+
+@code {
+    private string _path = "/";
+
+    protected override void OnInitialized()
+    {
+        _path = new Uri(Nav.Uri).LocalPath;
+        Nav.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _path = new Uri(e.Location).LocalPath;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private string PageStyle(string pagePath)
+    {
+        bool active = pagePath == "/"
+            ? _path == "/"
+            : _path.StartsWith(pagePath, StringComparison.OrdinalIgnoreCase);
+        return active ? "" : "display:none";
+    }
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+}
