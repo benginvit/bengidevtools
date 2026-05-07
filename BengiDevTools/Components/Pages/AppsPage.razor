@@ -151,6 +151,13 @@
                                   title="@(app.HttpsPort.HasValue && app.IsRunning ? $"Öppna https://localhost:{app.HttpsPort}" : "")"
                                   @onclick:stopPropagation
                                   @onclick="() => OpenPort(app)">@(app.HttpsPort.HasValue ? ":" + app.HttpsPort : string.Empty)</span>
+                            <span class="app-stats" title="Arbetsminne · CPU">
+                                @if (app.IsRunning && app.MemoryMb > 0)
+                                {
+                                    <span>@app.MemoryMb MB</span>
+                                    <span style="color:@(app.CpuPercent > 20 ? "var(--yellow)" : "inherit")">@app.CpuPercent.ToString("0.#")%</span>
+                                }
+                            </span>
                             <div class="app-actions" @onclick:stopPropagation>
                                 <button class="btn sm"
                                         title="@(app.HasLocalUser ? "Redigera appsettings.localuser.json" : "Skapa appsettings.localuser.json")"
@@ -483,6 +490,10 @@
                     app.GitStatus    = Scan.GetGitStatus(app.RepoName);
                     var b = Scan.GetGitBranch(app.RepoName);
                     if (!string.IsNullOrEmpty(b)) app.GitBranch = b;
+                    if (app.IsRunning)
+                        (app.MemoryMb, app.CpuPercent) = Proc.GetResourceUsage(app.Id);
+                    else
+                        (app.MemoryMb, app.CpuPercent) = (0, 0);
                 }
                 await InvokeAsync(StateHasChanged);
             }
@@ -998,6 +1009,8 @@
         public bool            HasException  { get; set; }
         public bool            IsExternal    { get; set; }
         public int             Pid           { get; set; } = -1;
+        public int             MemoryMb      { get; set; }
+        public double          CpuPercent    { get; set; }
     }
 
     private class ConsoleState : IDisposable

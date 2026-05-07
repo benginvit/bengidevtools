@@ -185,7 +185,7 @@ body {
 
 .app-row {
   display: grid;
-  grid-template-columns: 13px 8px 200px 56px 100px;
+  grid-template-columns: 13px 8px 180px 44px 80px 100px;
   align-items: center;
   gap: 8px;
   padding: 3px 6px;
@@ -220,6 +220,15 @@ body {
 
 .app-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .app-port { color: var(--muted); font-size: 10px; white-space: nowrap; }
+
+.app-stats {
+  display: flex;
+  flex-direction: column;
+  font-size: 9px;
+  color: var(--muted);
+  line-height: 1.4;
+  white-space: nowrap;
+}
 
 .app-actions { display: flex; gap: 3px; align-items: center; }
 

@@ -9,6 +9,7 @@ public interface IProcessService
     bool HasException(string id);
     Task DetectExternalAsync(IEnumerable<ScannedApp> apps);
     int GetPid(string id);
+    (int MemoryMb, double CpuPercent) GetResourceUsage(string id);
     object GetDetectionDiagnostics();
     IReadOnlyList<string> GetOutputBuffer(string id);
     void Subscribe(string id, Channel<string> channel);

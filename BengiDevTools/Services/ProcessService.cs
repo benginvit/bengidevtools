@@ -11,10 +11,11 @@ public partial class ProcessService : IProcessService
     [GeneratedRegex(@"\w+Exception:|\bUnhandled\b|fail:|crit:", RegexOptions.IgnoreCase)]
     private static partial Regex ExceptionPattern();
 
-    private readonly object                          _lock         = new();
-    private readonly Dictionary<string, Process>    _processes    = new();
-    private readonly Dictionary<string, AppOutput>  _outputs      = new();
-    private readonly Dictionary<string, int>        _externalPids = new(); // id → pid for externally detected
+    private readonly object                                              _lock         = new();
+    private readonly Dictionary<string, Process>                         _processes    = new();
+    private readonly Dictionary<string, AppOutput>                       _outputs      = new();
+    private readonly Dictionary<string, int>                             _externalPids = new(); // id → pid for externally detected
+    private readonly Dictionary<string, (DateTime Time, TimeSpan Cpu)>  _cpuSamples   = new();
 
     public bool IsRunning(string id)
     {
@@ -117,6 +118,37 @@ public partial class ProcessService : IProcessService
 
     public bool HasException(string id) =>
         _outputs.TryGetValue(id, out var o) && o.HasException;
+
+    public (int MemoryMb, double CpuPercent) GetResourceUsage(string id)
+    {
+        var pid = GetPid(id);
+        if (pid <= 0) return (0, 0);
+        try
+        {
+            using var proc = Process.GetProcessById(pid);
+            proc.Refresh();
+            var memMb  = (int)(proc.WorkingSet64 / 1024 / 1024);
+            var cpuNow = proc.TotalProcessorTime;
+            var now    = DateTime.UtcNow;
+            double cpuPct = 0;
+            lock (_lock)
+            {
+                if (_cpuSamples.TryGetValue(id, out var prev))
+                {
+                    var elapsedSec = (now - prev.Time).TotalSeconds;
+                    if (elapsedSec > 0)
+                    {
+                        var cpuDelta = (cpuNow - prev.Cpu).TotalSeconds;
+                        cpuPct = Math.Round(cpuDelta / (elapsedSec * Environment.ProcessorCount) * 100, 1);
+                        cpuPct = Math.Clamp(cpuPct, 0, 100);
+                    }
+                }
+                _cpuSamples[id] = (now, cpuNow);
+            }
+            return (memMb, cpuPct);
+        }
+        catch { return (0, 0); }
+    }
 
     // Detect externally started processes for a list of apps.
     // Called from the scan/status endpoint.
