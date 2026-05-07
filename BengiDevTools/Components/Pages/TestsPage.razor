@@ -30,6 +30,7 @@
         <button class="btn" @onclick="ToggleImport">
             ↑ Importera
         </button>
+        <button class="btn @(_debugOpen ? "active" : "")" @onclick="() => _debugOpen = !_debugOpen" title="SQL Monitor">🔍 Monitor</button>
         <button class="btn" @onclick="CheckAll">Välj alla</button>
         <button class="btn" @onclick="ClearChecked">Rensa val</button>
         <span style="margin-left:auto;color:var(--muted);font-size:11px;align-self:center">
@@ -425,6 +426,102 @@
 
     </div>
 
+    <!-- ── SQL Monitor ── -->
+    @if (_debugOpen)
+    {
+        <div class="sql-monitor">
+            <div class="sql-monitor-header">
+                <span style="font-weight:600;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">SQL Monitor</span>
+                <select class="input" style="font-size:11px;max-width:170px" @onchange="LoadMonitorScript">
+                    <option value="">-- Ladda skript --</option>
+                    @foreach (var s in _toolboxScripts)
+                    {
+                        <option value="@s.Path">@s.Name</option>
+                    }
+                </select>
+                <button class="btn sm primary" @onclick="() => _ = RunMonitorAsync()"
+                        disabled="@(_monitorRunning || string.IsNullOrWhiteSpace(_monitorSql))">
+                    @(_monitorRunning ? "⟳" : "▶") Kör
+                </button>
+                <select class="input" style="width:62px;font-size:11px" @bind="_monitorPollSeconds">
+                    <option value="1">1 s</option>
+                    <option value="2">2 s</option>
+                    <option value="5">5 s</option>
+                    <option value="10">10 s</option>
+                    <option value="30">30 s</option>
+                    <option value="60">60 s</option>
+                </select>
+                <button class="btn sm @(_monitorPolling ? "danger" : "")" @onclick="ToggleMonitorPoll"
+                        disabled="@string.IsNullOrWhiteSpace(_monitorSql)">
+                    @(_monitorPolling ? "⏹ Stoppa" : "⟳ Polla")
+                </button>
+                @if (_monitorLastRun.HasValue)
+                {
+                    <span style="font-size:10px;color:var(--muted)">
+                        @_monitorLastRun.Value.ToString("HH:mm:ss")
+                        @if (_monitorRows.Count > 0) { <span> · @_monitorRows.Count rad@(_monitorRows.Count == 1 ? "" : "er")</span> }
+                    </span>
+                }
+                <span style="flex:1"></span>
+                <button class="btn sm" @onclick="() => { _debugOpen = false; _monitorPolling = false; _monitorCts?.Cancel(); }">×</button>
+            </div>
+            <div class="sql-monitor-body">
+                <div class="sql-monitor-sql">
+                    <textarea class="debug-sql-editor" style="flex:1;resize:none;font-size:11px;border:none;border-radius:0"
+                              placeholder="SELECT ..." spellcheck="false"
+                              @bind="_monitorSql" @bind:event="oninput" />
+                </div>
+                <div class="sql-monitor-results">
+                    @if (_monitorError is not null)
+                    {
+                        <div style="color:var(--red);font-size:11px;padding:8px 10px">FEL: @_monitorError</div>
+                    }
+                    else if (_monitorColumns.Count > 0)
+                    {
+                        <div class="sql-monitor-cols">
+                            @foreach (var col in _monitorColumns)
+                            {
+                                var hidden = _monitorHiddenCols.Contains(col);
+                                <button class="col-pill @(hidden ? "col-pill-hidden" : "")"
+                                        @onclick="() => ToggleMonitorCol(col)">@col</button>
+                            }
+                        </div>
+                        <div class="sql-monitor-table-wrap">
+                            <table class="monitor-table">
+                                <thead>
+                                    <tr>
+                                        @foreach (var col in _monitorColumns.Where(c => !_monitorHiddenCols.Contains(c)))
+                                        {
+                                            <th>@col</th>
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in _monitorRows)
+                                    {
+                                        var rowClass = MonitorRowClass(row);
+                                        <tr class="@rowClass">
+                                            @foreach (var col in _monitorColumns.Where(c => !_monitorHiddenCols.Contains(c)))
+                                            {
+                                                <td title="@row.GetValueOrDefault(col, "")">@row.GetValueOrDefault(col, "")</td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                    else if (!_monitorRunning)
+                    {
+                        <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:11px">
+                            Skriv en SQL-fråga och kör, eller starta polling
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
     <!-- ── Status log ── -->
     @if (_log.Count > 0)
     {
@@ -477,6 +574,18 @@
     private string              _importText       = "";
     private string              _importMsg        = "";
 
+    private bool                     _debugOpen          = false;
+    private string                   _monitorSql         = "";
+    private int                      _monitorPollSeconds = 5;
+    private bool                     _monitorPolling     = false;
+    private bool                     _monitorRunning     = false;
+    private CancellationTokenSource? _monitorCts;
+    private List<string>             _monitorColumns     = [];
+    private List<Dictionary<string,string>> _monitorRows = [];
+    private HashSet<string>          _monitorHiddenCols  = [];
+    private string?                  _monitorError;
+    private DateTime?                _monitorLastRun;
+
     private IEnumerable<TestCase> Filtered => Svc.Cases
         .Where(tc => string.IsNullOrEmpty(_filter)
             || tc.Beskrivning.Contains(_filter, StringComparison.OrdinalIgnoreCase)
@@ -486,7 +595,7 @@
 
     protected override void OnInitialized() { Svc.Load(); DataSvc.Load(); LoadToolbox(); }
 
-    public async ValueTask DisposeAsync() { _runCts?.Cancel(); _cts.Cancel(); await Task.CompletedTask; }
+    public async ValueTask DisposeAsync() { _runCts?.Cancel(); _monitorCts?.Cancel(); _cts.Cancel(); await Task.CompletedTask; }
 
     // ── Toolbox ────────────────────────────────────────────────────────────────
 
@@ -926,5 +1035,98 @@
         {
             _importMsg = $"Fel: {ex.Message}";
         }
+    }
+
+    // ── SQL Monitor ────────────────────────────────────────────────────────────
+
+    private void LoadMonitorScript(ChangeEventArgs e)
+    {
+        var path = e.Value?.ToString();
+        if (!string.IsNullOrEmpty(path) && File.Exists(path))
+            _monitorSql = File.ReadAllText(path);
+    }
+
+    private async Task RunMonitorAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_monitorSql)) return;
+        _monitorRunning = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var (cols, rows, err) = await Svc.QueryAsync(_monitorSql, Settings.Settings.SqlConnectionString, _cts.Token);
+            _monitorColumns = cols;
+            _monitorRows    = rows;
+            _monitorError   = err;
+            _monitorLastRun = DateTime.Now;
+            _monitorHiddenCols.IntersectWith(cols.ToHashSet(StringComparer.OrdinalIgnoreCase));
+        }
+        catch (OperationCanceledException) { }
+        _monitorRunning = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleMonitorPoll()
+    {
+        if (_monitorPolling) { _monitorCts?.Cancel(); }
+        else                 { _ = StartMonitorPollAsync(); }
+    }
+
+    private async Task StartMonitorPollAsync()
+    {
+        _monitorCts?.Dispose();
+        _monitorCts     = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+        _monitorPolling = true;
+        var ct = _monitorCts.Token;
+        while (!ct.IsCancellationRequested)
+        {
+            if (!string.IsNullOrWhiteSpace(_monitorSql))
+            {
+                _monitorRunning = true;
+                await InvokeAsync(StateHasChanged);
+                try
+                {
+                    var (cols, rows, err) = await Svc.QueryAsync(_monitorSql, Settings.Settings.SqlConnectionString, ct);
+                    _monitorColumns = cols;
+                    _monitorRows    = rows;
+                    _monitorError   = err;
+                    _monitorLastRun = DateTime.Now;
+                    _monitorHiddenCols.IntersectWith(cols.ToHashSet(StringComparer.OrdinalIgnoreCase));
+                }
+                catch (OperationCanceledException) { break; }
+                catch (Exception ex)               { _monitorError = ex.Message; }
+                _monitorRunning = false;
+                await InvokeAsync(StateHasChanged);
+            }
+            try { await Task.Delay(TimeSpan.FromSeconds(_monitorPollSeconds), ct); }
+            catch (OperationCanceledException) { break; }
+        }
+        _monitorPolling = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleMonitorCol(string col)
+    {
+        if (!_monitorHiddenCols.Remove(col)) _monitorHiddenCols.Add(col);
+    }
+
+    private static string MonitorRowClass(Dictionary<string, string> row)
+    {
+        var statusKeys = new[] { "state", "status", "result", "error", "type", "tillstand" };
+        var vals = row
+            .Where(kv => statusKeys.Any(k => kv.Key.Contains(k, StringComparison.OrdinalIgnoreCase)))
+            .Select(kv => kv.Value.ToLowerInvariant())
+            .Concat(row.Values.Select(v => v.ToLowerInvariant()))
+            .ToList();
+
+        if (vals.Any(v => v is "dead" or "deadletter" or "deadlettered" or "failed" or "error"
+                           or "faulted" or "suspended" or "poison" or "aborted" or "fault"))
+            return "row-error";
+        if (vals.Any(v => v is "active" or "completed" or "processed" or "success"
+                           or "succeeded" or "ok" or "done" or "delivered"))
+            return "row-ok";
+        if (vals.Any(v => v is "scheduled" or "deferred" or "pending" or "waiting"
+                           or "queued" or "enqueued" or "retrying"))
+            return "row-warn";
+        return "";
     }
 }

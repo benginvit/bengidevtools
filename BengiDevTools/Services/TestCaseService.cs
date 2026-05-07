@@ -323,6 +323,31 @@ public class TestCaseService(ISettingsService settings, ITestDataService testDat
         }
     }
 
+    public async Task<(List<string> Columns, List<Dictionary<string, string>> Rows, string? Error)> QueryAsync(
+        string sql, string connectionString, CancellationToken ct = default)
+    {
+        var cols = new List<string>();
+        var rows = new List<Dictionary<string, string>>();
+        try
+        {
+            using var conn = new SqlConnection(connectionString);
+            await conn.OpenAsync(ct);
+            using var cmd    = new SqlCommand(sql, conn) { CommandTimeout = 15 };
+            using var reader = await cmd.ExecuteReaderAsync(ct);
+            cols = Enumerable.Range(0, reader.FieldCount).Select(reader.GetName).ToList();
+            while (await reader.ReadAsync(ct) && rows.Count < 500)
+            {
+                var row = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                for (int i = 0; i < reader.FieldCount; i++)
+                    row[reader.GetName(i)] = reader.IsDBNull(i) ? "NULL" : reader.GetValue(i)?.ToString() ?? "";
+                rows.Add(row);
+            }
+            return (cols, rows, null);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) { return (cols, rows, ex.Message); }
+    }
+
     public string ExportSql(IEnumerable<TestCase> cases)
     {
         var sb = new StringBuilder();
