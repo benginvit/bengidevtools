@@ -712,12 +712,12 @@ body {
 /* ─── SQL Monitor panel ────────────────────────────────────────────────────── */
 
 .sql-monitor {
-  flex: 0 0 340px;
-  background: var(--panel);
-  border-top: 2px solid var(--border);
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: var(--bg);
   display: flex;
   flex-direction: column;
-  min-height: 200px;
 }
 
 .sql-monitor-header {
@@ -737,7 +737,7 @@ body {
 }
 
 .sql-monitor-sql {
-  width: 280px;
+  width: 360px;
   flex-shrink: 0;
   border-right: 1px solid var(--border);
   display: flex;
@@ -783,7 +783,7 @@ body {
 .monitor-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11px;
+  font-size: 13px;
   font-family: var(--mono);
 }
 
