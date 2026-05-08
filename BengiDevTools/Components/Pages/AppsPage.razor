@@ -124,7 +124,7 @@
             var nameColor  = gitStatus == "Uppdaterad" ? "var(--green)" : gitStatus == "Bakom" ? "var(--yellow)" : "var(--text)";
             var bm         = GetBuildMode(repoName);
 
-            @{ var isCollapsed = _collapsedRepos.Contains(repoName); }
+            var isCollapsed = _collapsedRepos.Contains(repoName);
             <div class="app-group" style="display:grid;grid-template-columns:2fr 1fr 150px;border-bottom:1px solid #222">
 
                 <!-- ── Launch column ── -->
