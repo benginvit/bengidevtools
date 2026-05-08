@@ -222,7 +222,7 @@
                 </div>
 
                 <!-- ── Bygg column ── -->
-                <div style="border-right:1px solid #2a2a2a;@(isCollapsed ? "display:none" : "")">
+                <div style="border-right:1px solid #2a2a2a">
                     @{ var repoExpanded = _expandedBuildRepos.Contains(repoName); }
                     @{ var slnDir = Path.Combine(Settings.Settings.RepoRootPath, repoName);
                        var slnKey = FindSln(slnDir) ?? "";
