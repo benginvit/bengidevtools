@@ -57,6 +57,10 @@
                     <span style="color:var(--muted)">Välj alla</span>
                 </label>
                 <span style="color:var(--muted)">@_runningCount/@_apps.Count kör</span>
+                <button class="btn sm" style="padding:1px 5px" title="Fäll ihop alla grupper"
+                        @onclick="() => { foreach (var g in _groups) _collapsedRepos.Add(g); }">▶▶</button>
+                <button class="btn sm" style="padding:1px 5px" title="Expandera alla grupper"
+                        @onclick="() => _collapsedRepos.Clear()">▼▼</button>
                 <button class="btn sm @(_showStats ? "primary" : "")"
                         style="padding:1px 5px"
                         @onclick="() => _showStats = !_showStats"
@@ -120,17 +124,23 @@
             var nameColor  = gitStatus == "Uppdaterad" ? "var(--green)" : gitStatus == "Bakom" ? "var(--yellow)" : "var(--text)";
             var bm         = GetBuildMode(repoName);
 
+            @{ var isCollapsed = _collapsedRepos.Contains(repoName); }
             <div class="app-group" style="display:grid;grid-template-columns:2fr 1fr 150px;border-bottom:1px solid #222">
 
                 <!-- ── Launch column ── -->
                 <div style="border-right:1px solid #2a2a2a">
                     <div class="app-group-name">
+                        <button class="btn sm" style="padding:0 4px;min-width:18px;font-size:10px;color:var(--muted)"
+                                @onclick="() => { if (!_collapsedRepos.Remove(repoName)) _collapsedRepos.Add(repoName); }">
+                            @(isCollapsed ? "▶" : "▼")
+                        </button>
                         <label class="cb" @onclick:stopPropagation>
                             <input type="checkbox" checked="@allChecked"
                                    @onchange="e => SetRepoChecked(repoName, (bool)(e.Value ?? false))" />
                         </label>
                         <span style="color:@nameColor">@repoName</span>
                     </div>
+                    @if (!isCollapsed)
                     @foreach (var app in repoApps)
                     {
                         var isBusy     = _busyIds.Contains(app.Id);
@@ -209,7 +219,7 @@
                 </div>
 
                 <!-- ── Bygg column ── -->
-                <div style="border-right:1px solid #2a2a2a">
+                <div style="border-right:1px solid #2a2a2a;@(isCollapsed ? "display:none" : "")">
                     @{ var repoExpanded = _expandedBuildRepos.Contains(repoName); }
                     @{ var slnDir = Path.Combine(Settings.Settings.RepoRootPath, repoName);
                        var slnKey = FindSln(slnDir) ?? "";
@@ -313,7 +323,7 @@
                 </div>
 
                 <!-- ── Git column ── -->
-                <div style="padding:4px 6px;font-size:11px;min-height:28px">
+                <div style="padding:4px 6px;font-size:11px;min-height:28px;@(isCollapsed ? "display:none" : "")">
                     @if (!string.IsNullOrEmpty(gitBranch))
                     {
                         <div style="font-family:var(--mono);color:var(--muted);font-size:10px">@gitBranch</div>
@@ -401,7 +411,8 @@
     private bool                     _stopping;
     private bool                     _showStats;
     private DateTime?                _lastScanned;
-    private readonly HashSet<string> _busyIds    = [];
+    private readonly HashSet<string> _busyIds         = [];
+    private readonly HashSet<string> _collapsedRepos  = [];
 
     // Per-app consoles (keyed by app.Id)
     private readonly Dictionary<string, ConsoleState> _consoles = new();
