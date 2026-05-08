@@ -121,7 +121,10 @@
             var gitStatus  = repoApps.FirstOrDefault()?.GitStatus ?? "–";
             var gitBranch  = repoApps.FirstOrDefault()?.GitBranch ?? string.Empty;
             var allChecked = repoApps.All(a => a.Checked);
-            var nameColor  = gitStatus == "Uppdaterad" ? "var(--green)" : gitStatus == "Bakom" ? "var(--yellow)" : "var(--text)";
+            var nameColor  = repoApps.Any(a => a.HasException) ? "var(--red)"
+                           : gitStatus == "Uppdaterad" ? "var(--green)"
+                           : gitStatus == "Bakom" ? "var(--yellow)"
+                           : "var(--text)";
             var bm         = GetBuildMode(repoName);
 
             var isCollapsed = _collapsedRepos.Contains(repoName);
