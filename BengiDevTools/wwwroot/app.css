@@ -554,6 +554,19 @@ body {
   margin-bottom: 6px;
   background: var(--surface);
 }
+.action-item.drag-over {
+  border-top: 2px solid var(--blue);
+}
+.drag-handle {
+  cursor: grab;
+  color: var(--muted);
+  font-size: 15px;
+  padding: 0 2px;
+  flex-shrink: 0;
+  user-select: none;
+  line-height: 1;
+}
+.drag-handle:active { cursor: grabbing; }
 
 .action-header {
   display: flex;
