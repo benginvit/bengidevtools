@@ -149,7 +149,7 @@
                         var isBusy     = _busyIds.Contains(app.Id);
                         var dotClass   = isBusy ? "starting" : app.HasException ? "exception" : app.IsRunning ? "running" : "stopped";
                         var dotTitle   = isBusy          ? "Startar…" :
-                                         app.HasException ? "Exception!" :
+                                         app.HasException ? "Exception — klicka för att släcka" :
                                          app.IsRunning    ? $"PID {app.Pid} — klicka för att kopiera" : "Stoppad";
                         var isExpanded = _consoles.ContainsKey(app.Id);
                         var consoleId  = "con-" + app.Id.Replace('/', '-');
@@ -161,7 +161,7 @@
                                    @onclick:stopPropagation
                                    @onchange="e => app.Checked = (bool)(e.Value ?? false)" />
                             <div class="app-dot @dotClass" title="@dotTitle"
-                                 @onclick:stopPropagation @onclick="() => CopyPid(app)"></div>
+                                 @onclick:stopPropagation @onclick="() => OnDotClick(app)"></div>
                             <span class="app-name">@app.ProjectName</span>
                             <span class="app-port"
                                   style="@(app.HttpsPort.HasValue && app.IsRunning ? "cursor:pointer;color:var(--blue)" : "")"
@@ -807,6 +807,19 @@
     {
         if (!app.HttpsPort.HasValue || !app.IsRunning) return;
         await JS.InvokeVoidAsync("open", $"https://localhost:{app.HttpsPort}/swagger", "_blank");
+    }
+
+    private async Task OnDotClick(AppViewModel app)
+    {
+        if (app.HasException)
+        {
+            Proc.ClearException(app.Id);
+            app.HasException = false;
+        }
+        else
+        {
+            await CopyPid(app);
+        }
     }
 
     private async Task CopyPid(AppViewModel app)

@@ -7,6 +7,7 @@ public interface IProcessService
     bool IsRunning(string id);
     bool IsExternal(string id);
     bool HasException(string id);
+    void ClearException(string id);
     Task DetectExternalAsync(IEnumerable<ScannedApp> apps);
     int GetPid(string id);
     (int MemoryMb, double CpuPercent) GetResourceUsage(string id);

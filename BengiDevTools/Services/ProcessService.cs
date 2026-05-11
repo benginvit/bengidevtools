@@ -119,6 +119,11 @@ public partial class ProcessService : IProcessService
     public bool HasException(string id) =>
         _outputs.TryGetValue(id, out var o) && o.HasException;
 
+    public void ClearException(string id)
+    {
+        if (_outputs.TryGetValue(id, out var o)) o.ClearException();
+    }
+
     public (int MemoryMb, double CpuPercent) GetResourceUsage(string id)
     {
         var pid = GetPid(id);
@@ -504,6 +509,8 @@ public partial class ProcessService : IProcessService
         {
             lock (this) { _lines.Clear(); HasException = false; }
         }
+
+        public void ClearException() { lock (this) { HasException = false; } }
 
         public void Append(string line, Regex exceptionPattern)
         {
