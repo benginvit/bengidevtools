@@ -355,7 +355,16 @@
                     <div style="display:flex;gap:6px;align-items:center">
                         @if (_busy)
                         {
-                            <button class="btn sm danger" @onclick="StopRun">⏹ Avbryt</button>
+                            @if (_paused)
+                            {
+                                <span style="color:#ffcc44;font-size:11px">⏸</span>
+                                <button class="btn sm primary" @onclick="ResumeBreakpoint">▶ Fortsätt</button>
+                                <button class="btn sm danger"  @onclick="CancelBreakpoint">⏹ Avbryt</button>
+                            }
+                            else
+                            {
+                                <button class="btn sm danger" @onclick="StopRun">⏹ Avbryt</button>
+                            }
                         }
                         else
                         {
@@ -366,14 +375,6 @@
                         }
                     </div>
                 </div>
-                @if (_paused)
-                {
-                    <div style="display:flex;gap:8px;align-items:center;padding:6px 12px;background:#1a1200;border-bottom:1px solid #554400">
-                        <span style="color:#ffcc44;font-size:11px">⏸ Pausad vid breakpoint</span>
-                        <button class="btn sm primary" @onclick="ResumeBreakpoint">▶ Fortsätt</button>
-                        <button class="btn sm danger"  @onclick="CancelBreakpoint">⏹ Avbryt</button>
-                    </div>
-                }
                 <div style="flex:1;min-height:0;overflow-y:auto;padding:10px 12px">
                     @if (_selected.Steps.Count > 0)
                     {
