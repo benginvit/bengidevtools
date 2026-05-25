@@ -9,10 +9,10 @@
 
 <div class="apps-page">
     <!-- ── Tre-kolumns header ── -->
-    <div style="display:grid;grid-template-columns:2fr 1fr 150px;border-bottom:1px solid #333;flex-shrink:0">
+    <div style="display:grid;grid-template-columns:2fr 1fr;border-bottom:1px solid #333;flex-shrink:0">
         <!-- Launch header -->
         <div style="padding:6px 8px;border-right:1px solid #333;display:flex;flex-direction:column;gap:4px">
-            <div style="display:flex;gap:4px;align-items:center">
+            <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">
                 <button class="btn sm primary" @onclick="StartSelected"
                         disabled="@(_checkedCount == 0 || _starting || _stopping)">
                     @if (_starting) { <span class="status-spinner">⟳</span> } else { <text>▶</text> }
@@ -25,30 +25,23 @@
                 <button class="btn sm" @onclick="ClearAllConsoles"
                         disabled="@(_consoles.Count == 0)"
                         title="Rensa alla konsoler">✕ Konsoler</button>
-                <div style="position:relative">
-                    <button class="btn sm" @onclick="() => _showScanMenu = !_showScanMenu"
-                            title="Scanna och exportera">•••</button>
-                    @if (_showScanMenu)
+                <button class="btn sm primary" @onclick="DoScan" disabled="@_scanning"
+                        title="@(_lastScanned.HasValue ? "Senast: " + _lastScanned.Value.ToLocalTime().ToString("g") : "Aldrig scannad")">
+                    @if (_scanning) { <span class="status-spinner">⟳</span> } else { <text>⟳</text> }
+                    Scanna
+                    @if (_lastScanned.HasValue)
                     {
-                        <div style="position:absolute;top:calc(100% + 3px);left:0;z-index:50;background:#1e1e1e;border:1px solid #444;border-radius:3px;padding:3px;display:flex;flex-direction:column;gap:2px;min-width:170px">
-                            <button class="btn sm" style="width:100%;text-align:left"
-                                    @onclick="async () => { _showScanMenu = false; await DoScan(); }"
-                                    disabled="@_scanning"
-                                    title="@(_lastScanned.HasValue ? "Senast: " + _lastScanned.Value.ToLocalTime().ToString("g") : "Aldrig scannad")">
-                                ⟳ Scanna
-                                @if (_lastScanned.HasValue)
-                                {
-                                    <span style="color:var(--muted);font-size:9px;margin-left:4px">@_lastScanned.Value.ToLocalTime().ToString("d")</span>
-                                }
-                            </button>
-                            <a class="btn sm" href="/api/apps/localuser/export" download="appsettings-localuser.zip"
-                               @onclick="() => _showScanMenu = false"
-                               style="width:100%;text-align:left;text-decoration:none">
-                                ↓ Exportera localuser
-                            </a>
-                        </div>
+                        <span style="color:var(--muted);font-size:9px;margin-left:2px">@_lastScanned.Value.ToLocalTime().ToString("d")</span>
                     }
-                </div>
+                </button>
+                <button class="btn sm" @onclick="DoGitRefresh"
+                        disabled="@(_gitLoading || _apps.Count == 0)"
+                        title="Uppdatera git-status">
+                    @if (_gitLoading) { <span class="status-spinner">⟳</span> } else { <text>⟳</text> }
+                    Git
+                </button>
+                <a class="btn sm" href="/api/apps/localuser/export" download="appsettings-localuser.zip"
+                   style="text-decoration:none" title="Exportera appsettings.localuser.json">↓ Localuser</a>
             </div>
             <div style="display:flex;align-items:center;gap:6px;font-size:11px">
                 <label class="cb">
@@ -95,15 +88,6 @@
             <button class="btn sm" @onclick="() => _expandedBuildRepos.Clear()"
                     title="Kollaps alla bygg-sektioner" disabled="@(_expandedBuildRepos.Count == 0)">▲ Kollaps</button>
         </div>
-        <!-- Git header -->
-        <div style="padding:6px 8px;display:flex;align-items:center">
-            <button class="btn sm" @onclick="DoGitRefresh"
-                    disabled="@(_gitLoading || _apps.Count == 0)"
-                    title="Uppdatera git-status">
-                @if (_gitLoading) { <span class="status-spinner">⟳</span> } else { <text>⟳</text> }
-                Git
-            </button>
-        </div>
     </div>
 
     @if (_apps.Count == 0 && !_scanning)
@@ -128,7 +112,7 @@
             var bm         = GetBuildMode(repoName);
 
             var isCollapsed = _collapsedRepos.Contains(repoName);
-            <div class="app-group" style="display:grid;grid-template-columns:2fr 1fr 150px;border-bottom:1px solid #222">
+            <div class="app-group" style="display:grid;grid-template-columns:2fr 1fr;border-bottom:1px solid #222">
 
                 <!-- ── Launch column ── -->
                 <div style="border-right:1px solid #2a2a2a">
@@ -142,6 +126,10 @@
                                    @onchange="e => SetRepoChecked(repoName, (bool)(e.Value ?? false))" />
                         </label>
                         <span style="color:@nameColor">@repoName</span>
+                        @if (!string.IsNullOrEmpty(gitBranch))
+                        {
+                            <span style="color:var(--muted);font-size:9px;font-family:var(--mono);margin-left:2px">@gitBranch</span>
+                        }
                     </div>
                     @if (!isCollapsed)
                     @foreach (var app in repoApps)
@@ -325,17 +313,6 @@
                     }
                 </div>
 
-                <!-- ── Git column ── -->
-                <div style="padding:4px 6px;font-size:11px;min-height:28px;@(isCollapsed ? "display:none" : "")">
-                    @if (!string.IsNullOrEmpty(gitBranch))
-                    {
-                        <div style="font-family:var(--mono);color:var(--muted);font-size:10px">@gitBranch</div>
-                    }
-                    @if (gitStatus != "–")
-                    {
-                        <div style="color:@nameColor;font-size:10px">@gitStatus</div>
-                    }
-                </div>
             </div>
         }
     </div>
@@ -444,8 +421,6 @@
     private readonly List<string> _statusLog = [];
     private bool                  _statusBusy;
 
-    // Scan expand menu
-    private bool _showScanMenu;
 
     private readonly CancellationTokenSource _cts = new();
 
