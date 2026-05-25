@@ -233,13 +233,6 @@
                                 @onclick="() => SetBuildMode(repoName, BuildMode.Normal)">Normal</button>
                         <span style="color:#444;margin:0 1px">|</span>
                         <button class="btn sm" @onclick="() => BuildAll(repoName)">Bygg alla</button>
-                        @{ var stale = _buildStale.GetValueOrDefault(repoName, ""); }
-                        @if (stale != "")
-                        {
-                            <span class="@StaleBadgeClass(stale)" title="@StaleBadgeTitle(stale)">
-                                @StaleBadgeIcon(stale) @(stale != "checking" ? StaleBadgeLabel(stale) : "")
-                            </span>
-                        }
                         @if (slnBs is not null)
                         {
                             <span style="color:@(slnBs.Status == "OK" ? "var(--green)" : slnBs.Status == "FAILED" ? "var(--red)" : "var(--yellow)")">
@@ -403,7 +396,6 @@
     private readonly Dictionary<string, List<ProjectInfo>> _repoProjects         = new();
     private readonly Dictionary<string, BuildState>        _buildStates          = new();
     private readonly Dictionary<string, BuildMode>          _repoBuildFlags       = new();
-    private readonly Dictionary<string, string>             _buildStale           = new(); // repoName → "" | "checking" | "stale" | "ok" | "no-build"
     private BuildMode                    _globalBuildMode   = BuildMode.Ren;
     private int                          _globalMaxParallel = 2;
     private CancellationTokenSource?     _buildAllCts;
@@ -438,7 +430,6 @@
         _lastScanned = Scan.LastScanned;
         BuildAppList();
         _ = PollLoop();
-        _ = CheckAllStalenessAsync();
     }
 
     public async ValueTask DisposeAsync()
@@ -917,11 +908,6 @@
 
         state.IsBuilding = false;
         _expandedBuildOutputs.Remove(slnPath);
-        if (state.Status == "OK")
-        {
-            var dir = Path.Combine(Settings.Settings.RepoRootPath, repoName);
-            _buildStale[repoName] = await Task.Run(() => GetBuildStale(dir));
-        }
         await InvokeAsync(StateHasChanged);
     }
 
@@ -934,61 +920,6 @@
             if (f is not null) return f;
         }
         return null;
-    }
-
-    private async Task CheckAllStalenessAsync()
-    {
-        var groups = _groups.ToList();
-        foreach (var repoName in groups)
-            _buildStale[repoName] = "checking";
-        await InvokeAsync(StateHasChanged);
-
-        await Task.Run(() =>
-        {
-            foreach (var repoName in groups)
-            {
-                var dir = Path.Combine(Settings.Settings.RepoRootPath, repoName);
-                _buildStale[repoName] = GetBuildStale(dir);
-            }
-        });
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private static string GetBuildStale(string repoDir)
-    {
-        var newestBuild = DateTime.MinValue;
-        try
-        {
-            foreach (var f in Directory.GetFiles(repoDir, "*.dll", SearchOption.AllDirectories))
-            {
-                var rel   = Path.GetRelativePath(repoDir, f);
-                var parts = rel.Split(Path.DirectorySeparatorChar);
-                if (!parts.Any(p => p.Equals("bin", StringComparison.OrdinalIgnoreCase))) continue;
-                var t = File.GetLastWriteTimeUtc(f);
-                if (t > newestBuild) newestBuild = t;
-            }
-        }
-        catch { }
-
-        if (newestBuild == DateTime.MinValue) return "no-build";
-
-        var newestSource = DateTime.MinValue;
-        try
-        {
-            foreach (var pattern in new[] { "*.cs", "*.csproj" })
-            foreach (var f in Directory.GetFiles(repoDir, pattern, SearchOption.AllDirectories))
-            {
-                var rel = Path.GetRelativePath(repoDir, f);
-                if (rel.StartsWith("bin", StringComparison.OrdinalIgnoreCase) ||
-                    rel.StartsWith("obj", StringComparison.OrdinalIgnoreCase) ||
-                    rel.StartsWith(".git")) continue;
-                var t = File.GetLastWriteTimeUtc(f);
-                if (t > newestSource) newestSource = t;
-            }
-        }
-        catch { }
-
-        return newestSource > newestBuild.AddSeconds(10) ? "stale" : "ok";
     }
 
     private async Task BuildProjectCore(string csprojPath, string repoName, BuildMode? modeOverride = null)
@@ -1065,35 +996,6 @@
         if (!_expandedBuildOutputs.Remove(csprojPath))
             _expandedBuildOutputs.Add(csprojPath);
     }
-
-    private static string StaleBadgeClass(string stale) => stale switch
-    {
-        "stale"    => "stale-badge",
-        "no-build" => "stale-badge no-build",
-        "ok"       => "stale-badge fresh",
-        _          => "stale-badge checking",
-    };
-    private static string StaleBadgeIcon(string stale) => stale switch
-    {
-        "stale"    => "⚠",
-        "no-build" => "○",
-        "ok"       => "✓",
-        _          => "…",
-    };
-    private static string StaleBadgeLabel(string stale) => stale switch
-    {
-        "stale"    => "ej byggd",
-        "no-build" => "aldrig byggd",
-        "ok"       => "färsk",
-        _          => "",
-    };
-    private static string StaleBadgeTitle(string stale) => stale switch
-    {
-        "stale"    => "Källkod är nyare än senaste bygget — bygg för senaste koden",
-        "no-build" => "Inget bygge hittades i bin/",
-        "ok"       => "Bygget är aktuellt",
-        _          => "Kontrollerar…",
-    };
 
     // ── Model types ────────────────────────────────────────────────────────────
 

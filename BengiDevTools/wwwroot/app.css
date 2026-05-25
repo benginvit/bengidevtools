@@ -653,10 +653,6 @@ body {
   font-weight: 600;
 }
 
-.stale-badge          { font-size: 10px; font-weight: 600; color: #e0a020; white-space: nowrap; }
-.stale-badge.no-build { color: var(--muted); }
-.stale-badge.fresh    { color: var(--green); }
-.stale-badge.checking { color: var(--muted); font-weight: 400; }
 .repo-status.ok     { color: var(--green); }
 .repo-status.failed { color: var(--red); }
 .repo-status.active { color: var(--yellow); }
